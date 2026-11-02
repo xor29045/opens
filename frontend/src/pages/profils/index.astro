@@ -1,0 +1,12 @@
+---
+import Public from '../../layouts/Public.astro';
+import Catalog from '../../features/catalog/Catalog.tsx';
+---
+<Public title="Catalogue" description="Parcours le catalogue des professionnel·les des maisons agréées en Belgique.">
+  <header style="margin-bottom: 32px;">
+    <span class="os-eyebrow">Catalogue</span>
+    <h1 class="os-title os-title--lg">Toutes les professionnel·les</h1>
+    <p class="os-lead">Filtre par ville, âge ou budget. Chaque profil appartient à une maison agréée et vérifiée.</p>
+  </header>
+  <Catalog client:only="react" />
+</Public>

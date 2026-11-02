@@ -1,0 +1,26 @@
+# Development reverse proxy: same origin for the frontend (/) and the API (/api).
+{
+	local_certs
+}
+
+localhost {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		-Server
+	}
+	handle /api/* {
+		reverse_proxy api:8080
+	}
+	# Photos (path-style bucket "photos"); signed URLs are bound to this host,
+	# so the original Host header is forwarded unchanged.
+	handle /photos/* {
+		reverse_proxy minio:9000
+	}
+	handle /healthz {
+		reverse_proxy api:8080
+	}
+	handle {
+		reverse_proxy frontend:4321
+	}
+}

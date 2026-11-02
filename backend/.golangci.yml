@@ -1,0 +1,10 @@
+version: "2"
+linters:
+  enable:
+    - gosec
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - bodyclose
+    - sqlclosecheck

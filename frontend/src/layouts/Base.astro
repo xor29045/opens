@@ -1,0 +1,35 @@
+---
+import '../styles/global.css';
+interface Props {
+  title: string;
+  description?: string;
+  /** Pages with personal or sensitive data are not indexed. */
+  noindex?: boolean;
+}
+const {
+  title,
+  description = 'Les professionnel·les des maisons agréées en Belgique : établissements vérifiés, profils attestés, coordonnées protégées.',
+  noindex = false,
+} = Astro.props;
+// The refresh cookie is HttpOnly: only the server can tell whether a session
+// may exist. Islands skip the refresh call when it cannot succeed.
+const hasSession = Astro.cookies.has('__Host-rt') || Astro.cookies.has('rt');
+---
+<!doctype html>
+<html lang="fr" class="dark" style="color-scheme: dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0c0f14" />
+    {noindex && <meta name="robots" content="noindex,nofollow" />}
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="os-session" content={hasSession ? '1' : '0'} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>{title} · Opensex</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#contenu">Aller au contenu</a>
+    <slot />
+  </body>
+</html>

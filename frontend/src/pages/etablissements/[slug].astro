@@ -1,0 +1,20 @@
+---
+import Public from '../../layouts/Public.astro';
+import { internalApiBase } from '../../lib/config';
+import EstablishmentView from '../../features/catalog/EstablishmentView.tsx';
+import type { components } from '../../lib/api/schema';
+
+type PublicEstablishment = components['schemas']['PublicEstablishment'];
+
+const { slug } = Astro.params;
+const res = await fetch(`${internalApiBase()}/establishments/${encodeURIComponent(slug ?? '')}`, {
+  signal: AbortSignal.timeout(10_000),
+});
+if (res.status === 404) return new Response(null, { status: 404 });
+if (!res.ok) return new Response(null, { status: 503 });
+const est = (await res.json()) as PublicEstablishment;
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+---
+<Public title={est.display_name} description={`${est.display_name} — établissement agréé ${est.approval_number}`}>
+  <EstablishmentView establishment={est} client:load />
+</Public>

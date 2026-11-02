@@ -1,0 +1,10 @@
+---
+import Base from './Base.astro';
+interface Props {
+  title: string;
+}
+const { title } = Astro.props;
+---
+<Base title={title} noindex={true}>
+  <slot />
+</Base>

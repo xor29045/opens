@@ -1,0 +1,7 @@
+---
+import Private from '../../../layouts/Private.astro';
+import Space from '../../../features/Space.tsx';
+---
+<Private title="Espace privé">
+  <Space page="manager.invoices" client:only="react" />
+</Private>

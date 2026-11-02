@@ -1,0 +1,8 @@
+---
+import Private from '../../../../layouts/Private.astro';
+import Space from '../../../../features/Space.tsx';
+if (Astro.params.id && !/^[0-9a-f-]{36}$/i.test(Astro.params.id)) return new Response(null, { status: 404 });
+---
+<Private title="Espace privé">
+  <Space page="manager.profile" id={Astro.params.id} client:only="react" />
+</Private>

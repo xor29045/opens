@@ -1,0 +1,150 @@
+# Development stack (§15.1). Usage, from the repository root:
+#   cp .env.example .env && docker compose -f deploy/docker-compose.yml --env-file .env up --build
+name: opensex
+
+x-backend-env: &backend-env
+  APP_ENV: development
+  APP_BASE_URL: ${APP_BASE_URL:-https://localhost}
+  CORS_ALLOWED_ORIGINS: ${APP_BASE_URL:-https://localhost}
+  TRUSTED_PROXIES: 172.16.0.0/12
+  LOG_LEVEL: ${LOG_LEVEL:-debug}
+  LOG_FORMAT: text
+  DATABASE_URL: postgres://app_rw:${APP_RW_PASSWORD}@postgres:5432/${APP_DB_NAME}?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+  JWT_KEYS_DIR: /keys
+  JWT_ACTIVE_KID: dev-1
+  FIELD_ENCRYPTION_KEYS: ${FIELD_ENCRYPTION_KEYS}
+  IP_HASH_KEY: ${IP_HASH_KEY}
+  RECOVERY_CODE_HMAC_KEY: ${RECOVERY_CODE_HMAC_KEY}
+  PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-fake}
+  NOWPAYMENTS_API_URL: ${NOWPAYMENTS_API_URL:-https://api-sandbox.nowpayments.io/v1}
+  NOWPAYMENTS_API_KEY: ${NOWPAYMENTS_API_KEY:-}
+  NOWPAYMENTS_IPN_SECRET: ${NOWPAYMENTS_IPN_SECRET:-}
+  STORAGE_DRIVER: s3
+  S3_ENDPOINT: http://minio:9000
+  S3_BUCKET: photos
+  S3_PUBLIC_ENDPOINT: ${APP_BASE_URL:-https://localhost}   # signed URLs served through Caddy /photos/*
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  PLATFORM_LEGAL_NAME: ${PLATFORM_LEGAL_NAME}
+  PLATFORM_COMPANY_NUMBER: ${PLATFORM_COMPANY_NUMBER}
+  ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_BOOTSTRAP_USERNAME:-}
+  ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+  SWAGGER_ENABLED: "true"
+  OPENAPI_SPEC_FILE: /spec/openapi.yaml
+  NO_PROXY: minio,postgres,redis,api,localhost,127.0.0.1
+  no_proxy: minio,postgres,redis,api,localhost,127.0.0.1
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_DB_NAME: ${APP_DB_NAME}
+      APP_MIGRATOR_PASSWORD: ${APP_MIGRATOR_PASSWORD}
+      APP_RW_PASSWORD: ${APP_RW_PASSWORD}
+      APP_RO_PASSWORD: ${APP_RO_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ${APP_DB_NAME}"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  # MinIO no longer publishes community images on Docker Hub/Quay; the frozen
+  # Bitnami legacy image is used for development only (any S3 works in prod).
+  minio:
+    image: bitnamilegacy/minio:2025.5.24
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_DEFAULT_BUCKETS: photos
+    volumes:
+      - miniodata:/bitnami/minio/data
+    ports:
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      retries: 30
+
+  migrate:
+    image: opensex/backend:dev
+    build: ../backend
+    entrypoint: ["/usr/local/bin/ops", "migrate", "up"]
+    environment:
+      DATABASE_URL: postgres://app_migrator:${APP_MIGRATOR_PASSWORD}@postgres:5432/${APP_DB_NAME}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: opensex/backend:dev
+    build: ../backend
+    environment: *backend-env
+    volumes:
+      - jwtkeys:/keys
+      - ../api:/spec:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  worker:
+    image: opensex/backend:dev
+    build: ../backend
+    entrypoint: ["/usr/local/bin/worker"]
+    environment: *backend-env
+    healthcheck:
+      disable: true
+    volumes:
+      - jwtkeys:/keys
+    depends_on:
+      api:
+        condition: service_healthy
+
+  frontend:
+    image: opensex/frontend:dev
+    build: ../frontend
+    environment:
+      API_INTERNAL_URL: http://api:8080
+      NO_PROXY: api,localhost,127.0.0.1
+      no_proxy: api,localhost,127.0.0.1
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      # Docker clients configured with a corporate proxy inject HTTP(S)_PROXY.
+      NO_PROXY: api,minio,frontend,localhost,127.0.0.1
+      no_proxy: api,minio,frontend,localhost,127.0.0.1
+    ports:
+      - "127.0.0.1:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  miniodata:
+  jwtkeys:
+  caddydata:

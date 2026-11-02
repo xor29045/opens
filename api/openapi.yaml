@@ -1,0 +1,6261 @@
+# Contract of the API — source of truth for the frontend types (openapi-typescript).
+openapi: 3.0.3
+info:
+  title: Opensex platform API
+  version: 1.0.0
+  description: 'Contract of the backend (dossier de conception v2.2, §11). Errors use RFC 9457 Problem Details. Access tokens (EdDSA JWT, 10 min,
+    5 min for admins) go in `Authorization: Bearer`; the refresh token is the `__Host-rt` HttpOnly cookie. Pagination: `page`, `page_size` (max
+    50).'
+servers:
+- url: https://localhost
+tags:
+- name: health
+- name: auth
+- name: catalog
+- name: manager
+- name: professional
+- name: billing
+- name: client
+- name: admin
+- name: webhooks
+paths:
+  /healthz:
+    get:
+      summary: Liveness
+      tags:
+      - health
+      operationId: get__healthz
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /readyz:
+    get:
+      summary: Readiness (database, Redis) — internal network only
+      tags:
+      - health
+      operationId: get__readyz
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  database:
+                    type: string
+                  redis:
+                    type: string
+        '503':
+          description: Not ready
+  /api/v1/docs:
+    get:
+      summary: Swagger UI (development / staging only)
+      tags:
+      - health
+      operationId: get_docs
+      security: []
+      responses:
+        '200':
+          description: OK
+  /api/v1/docs/openapi.yaml:
+    get:
+      summary: This document (development / staging only)
+      tags:
+      - health
+      operationId: get_docs_openapi.yaml
+      security: []
+      responses:
+        '200':
+          description: OK
+  /api/v1/auth/register/client:
+    post:
+      summary: Register a CLIENT (role fixed by the endpoint, RM-01)
+      tags:
+      - auth
+      operationId: post_auth_register_client
+      description: Sets the `__Host-rt` refresh cookie. A `role` field is ignored and recorded as a security event.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  pattern: ^[a-zA-Z0-9_.-]{3,30}$
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                accept_terms:
+                  type: boolean
+              required:
+              - username
+              - password
+              - accept_terms
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '409':
+          $ref: '#/components/responses/409'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/register/manager:
+    post:
+      summary: Register a MANAGER and its empty DRAFT establishment
+      tags:
+      - auth
+      operationId: post_auth_register_manager
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  pattern: ^[a-zA-Z0-9_.-]{3,30}$
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                accept_terms:
+                  type: boolean
+                accept_cgv:
+                  type: boolean
+                accept_dpa:
+                  type: boolean
+              required:
+              - username
+              - password
+              - accept_terms
+              - accept_cgv
+              - accept_dpa
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '409':
+          $ref: '#/components/responses/409'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/register/professional:
+    post:
+      summary: Register a PROFESSIONAL attached to a VERIFIED house (profile PENDING_APPROVAL)
+      tags:
+      - auth
+      operationId: post_auth_register_professional
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  pattern: ^[a-zA-Z0-9_.-]{3,30}$
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                accept_terms:
+                  type: boolean
+                establishment_slug:
+                  type: string
+                display_name:
+                  type: string
+                  maxLength: 60
+              required:
+              - username
+              - password
+              - accept_terms
+              - establishment_slug
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '409':
+          $ref: '#/components/responses/409'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/register/establishments:
+    get:
+      summary: Houses selectable at professional registration
+      tags:
+      - auth
+      operationId: get_auth_register_establishments
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SelectableEstablishment'
+                required:
+                - items
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/login:
+    post:
+      summary: Login (non-admin accounts)
+      tags:
+      - auth
+      operationId: post_auth_login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              required:
+              - username
+              - password
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/admin/login:
+    post:
+      summary: Admin login (short tokens, IP allowlist)
+      tags:
+      - auth
+      operationId: post_auth_admin_login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+              required:
+              - username
+              - password
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/refresh:
+    post:
+      summary: Rotate the refresh token
+      tags:
+      - auth
+      operationId: post_auth_refresh
+      description: 'CSRF protection: allowed `Origin` and `X-Requested-With` header required. Reusing a rotated token revokes the session family.'
+      security:
+      - refreshCookie: []
+      parameters:
+      - name: X-Requested-With
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - XMLHttpRequest
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/logout:
+    post:
+      summary: Revoke the current session
+      tags:
+      - auth
+      operationId: post_auth_logout
+      security:
+      - refreshCookie: []
+      - bearerAuth: []
+      parameters:
+      - name: X-Requested-With
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - XMLHttpRequest
+      responses:
+        '204':
+          description: No Content
+        '403':
+          $ref: '#/components/responses/403'
+  /api/v1/auth/logout-all:
+    post:
+      summary: Revoke every session
+      tags:
+      - auth
+      operationId: post_auth_logout_all
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+  /api/v1/auth/me:
+    get:
+      summary: Current identity (allowed while must_change_password)
+      tags:
+      - auth
+      operationId: get_auth_me
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+  /api/v1/auth/password:
+    put:
+      summary: Change password (current password required; other sessions revoked)
+      tags:
+      - auth
+      operationId: put_auth_password
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+              required:
+              - current_password
+              - new_password
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/password/recover:
+    post:
+      summary: Reset the password with a recovery code
+      tags:
+      - auth
+      operationId: post_auth_password_recover
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                recovery_code:
+                  type: string
+                new_password:
+                  type: string
+              required:
+              - username
+              - recovery_code
+              - new_password
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/401'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/recovery-codes/confirm:
+    post:
+      summary: Confirm the recovery codes were saved
+      tags:
+      - auth
+      operationId: post_auth_recovery_codes_confirm
+      security:
+      - bearerAuth: []
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+  /api/v1/auth/recovery-codes/status:
+    get:
+      summary: Remaining recovery codes
+      tags:
+      - auth
+      operationId: get_auth_recovery_codes_status
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryStatus'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+  /api/v1/auth/recovery-codes/regenerate:
+    post:
+      summary: New set of recovery codes (password required)
+      tags:
+      - auth
+      operationId: post_auth_recovery_codes_regenerate
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+              required:
+              - password
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recovery_codes:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/auth/sessions:
+    get:
+      summary: Active sessions
+      tags:
+      - auth
+      operationId: get_auth_sessions
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+                required:
+                - items
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+  /api/v1/auth/sessions/{id}:
+    delete:
+      summary: Revoke one of the actor's sessions
+      tags:
+      - auth
+      operationId: delete_auth_sessions_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+  /api/v1/profiles:
+    get:
+      summary: Search published profiles
+      tags:
+      - catalog
+      operationId: get_profiles
+      security:
+      - {}
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      - name: region
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: city
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: establishment
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: categories
+        in: query
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+        style: form
+        explode: true
+        description: Category slugs (any)
+      - name: age_min
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 18
+          maximum: 99
+      - name: age_max
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 18
+          maximum: 99
+      - name: price_min
+        in: query
+        required: false
+        schema:
+          type: integer
+          description: EUR
+      - name: price_max
+        in: query
+        required: false
+        schema:
+          type: integer
+          description: EUR
+      - name: height_min
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: height_max
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: hair_color
+        in: query
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+        style: form
+        explode: true
+      - name: eye_color
+        in: query
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+        style: form
+        explode: true
+      - name: body_type
+        in: query
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+        style: form
+        explode: true
+      - name: languages
+        in: query
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+        style: form
+        explode: true
+      - name: sort
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - recent
+          - price_asc
+          - price_desc
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageProfileCard'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/profiles/{slug}:
+    get:
+      summary: Published profile (contacts filtered by visibility, RM-40)
+      tags:
+      - catalog
+      operationId: get_profiles_slug
+      security:
+      - {}
+      - bearerAuth: []
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProfile'
+        '404':
+          $ref: '#/components/responses/404'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/establishments/{slug}:
+    get:
+      summary: Public page of a verified establishment
+      tags:
+      - catalog
+      operationId: get_establishments_slug
+      security:
+      - {}
+      - bearerAuth: []
+      parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicEstablishment'
+        '404':
+          $ref: '#/components/responses/404'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/regions:
+    get:
+      summary: Active regions and cities
+      tags:
+      - catalog
+      operationId: get_regions
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Region'
+                required:
+                - items
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/categories:
+    get:
+      summary: Active categories
+      tags:
+      - catalog
+      operationId: get_categories
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                required:
+                - items
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/attributes:
+    get:
+      summary: Enumerations for filters and forms
+      tags:
+      - catalog
+      operationId: get_attributes
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attributes'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/billing/plans:
+    get:
+      summary: Active subscription plans
+      tags:
+      - billing
+      operationId: get_billing_plans
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Plan'
+                required:
+                - items
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/establishment:
+    get:
+      summary: Own establishment (all fields and contacts)
+      tags:
+      - manager
+      operationId: get_manager_establishment
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Establishment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    put:
+      summary: Update the establishment (approval/legal/BCE change → PENDING)
+      tags:
+      - manager
+      operationId: put_manager_establishment
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstablishmentInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Establishment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/manager/establishment/contacts:
+    put:
+      summary: Replace establishment contacts
+      tags:
+      - manager
+      operationId: put_manager_establishment_contacts
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contacts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContactInput'
+              required:
+              - contacts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Contact'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/establishment/submit:
+    post:
+      summary: Submit for verification (DRAFT/REJECTED → PENDING)
+      tags:
+      - manager
+      operationId: post_manager_establishment_submit
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Establishment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/manager/publication-status:
+    get:
+      summary: 'Overview: checklist and state of every profile'
+      tags:
+      - manager
+      operationId: get_manager_publication_status
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManagerOverview'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/stats:
+    get:
+      summary: Aggregated views per profile (subscription required)
+      tags:
+      - manager
+      operationId: get_manager_stats
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 90
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstablishmentStats'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/pending:
+    get:
+      summary: Pending registrations (PENDING_APPROVAL)
+      tags:
+      - manager
+      operationId: get_manager_pending
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageProfileSummary'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles:
+    get:
+      summary: All profiles of the establishment
+      tags:
+      - manager
+      operationId: get_manager_profiles
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ProfileStatus'
+      - name: published
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: linked
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageProfileSummary'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    post:
+      summary: Create a DRAFT profile without linked account
+      tags:
+      - manager
+      operationId: post_manager_profiles
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileInput'
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}:
+    get:
+      summary: Profile detail (scoped to the establishment)
+      tags:
+      - manager
+      operationId: get_manager_profiles_profileId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    put:
+      summary: Update profile content (traced with its author)
+      tags:
+      - manager
+      operationId: put_manager_profiles_profileId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    delete:
+      summary: Delete the profile and its linked account
+      tags:
+      - manager
+      operationId: delete_manager_profiles_profileId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/reject:
+    post:
+      summary: Reject a pending registration (profile and account deleted)
+      tags:
+      - manager
+      operationId: post_manager_profiles_profileId_reject
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/manager/profiles/{profileId}/attestation:
+    put:
+      summary: Attest age (≥ 18), employment contract and consent (RM-21)
+      tags:
+      - manager
+      operationId: put_manager_profiles_profileId_attestation
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                birth_date:
+                  type: string
+                  format: date
+                employment_reference:
+                  type: string
+                  maxLength: 100
+                attested:
+                  type: boolean
+                  enum:
+                  - true
+              required:
+              - birth_date
+              - employment_reference
+              - attested
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    delete:
+      summary: Remove the attestation (unpublishes)
+      tags:
+      - manager
+      operationId: delete_manager_profiles_profileId_attestation
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/activate:
+    post:
+      summary: DRAFT/ARCHIVED → ACTIVE (attestation required)
+      tags:
+      - manager
+      operationId: post_manager_profiles_profileId_activate
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/manager/profiles/{profileId}/archive:
+    post:
+      summary: 'Archive: unpublish, invalidate attestation, suspend linked account'
+      tags:
+      - manager
+      operationId: post_manager_profiles_profileId_archive
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/manager/profiles/{profileId}/categories:
+    put:
+      summary: Replace services
+      tags:
+      - manager
+      operationId: put_manager_profiles_profileId_categories
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+              required:
+              - category_ids
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/rates:
+    put:
+      summary: Replace rates (1–15)
+      tags:
+      - manager
+      operationId: put_manager_profiles_profileId_rates
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rates:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RateInput'
+              required:
+              - rates
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Rate'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/contacts:
+    put:
+      summary: Replace profile contacts
+      tags:
+      - manager
+      operationId: put_manager_profiles_profileId_contacts
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contacts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContactInput'
+              required:
+              - contacts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Contact'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/photos:
+    post:
+      summary: Upload a photo (re-encoded, EXIF removed)
+      tags:
+      - manager
+      operationId: post_manager_profiles_profileId_photos
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JPEG, PNG or WebP, ≤ 10 MB
+              required:
+              - file
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Photo'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/photos/order:
+    put:
+      summary: Reorder photos
+      tags:
+      - manager
+      operationId: put_manager_profiles_profileId_photos_order
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                photo_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+              required:
+              - photo_ids
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Photo'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/photos/{photoId}:
+    patch:
+      summary: Set primary / position
+      tags:
+      - manager
+      operationId: patch_manager_profiles_profileId_photos_photoId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: photoId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_primary:
+                  type: boolean
+                position:
+                  type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Photo'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    delete:
+      summary: Delete a photo
+      tags:
+      - manager
+      operationId: delete_manager_profiles_profileId_photos_photoId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: photoId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/preview:
+    get:
+      summary: Public preview
+      tags:
+      - manager
+      operationId: get_manager_profiles_profileId_preview
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProfile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/account/suspend:
+    post:
+      summary: Suspend the linked professional account
+      tags:
+      - manager
+      operationId: post_manager_profiles_profileId_account_suspend
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/manager/profiles/{profileId}/account/restore:
+    post:
+      summary: Restore the linked professional account
+      tags:
+      - manager
+      operationId: post_manager_profiles_profileId_account_restore
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/manager/profiles/{profileId}/account/password-reset:
+    post:
+      summary: One-time temporary password for the professional (RM-07)
+      tags:
+      - manager
+      operationId: post_manager_profiles_profileId_account_password_reset
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemporaryPassword'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me:
+    get:
+      summary: Own profile
+      tags:
+      - professional
+      operationId: get_professional_me
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    put:
+      summary: Update own profile content
+      tags:
+      - professional
+      operationId: put_professional_me
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me/categories:
+    put:
+      summary: Replace own services
+      tags:
+      - professional
+      operationId: put_professional_me_categories
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+              required:
+              - category_ids
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me/rates:
+    put:
+      summary: Replace own rates
+      tags:
+      - professional
+      operationId: put_professional_me_rates
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rates:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/RateInput'
+              required:
+              - rates
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Rate'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me/contacts:
+    put:
+      summary: Replace own contacts
+      tags:
+      - professional
+      operationId: put_professional_me_contacts
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                contacts:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ContactInput'
+              required:
+              - contacts
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Contact'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me/photos:
+    post:
+      summary: Upload a photo
+      tags:
+      - professional
+      operationId: post_professional_me_photos
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JPEG, PNG or WebP, ≤ 10 MB
+              required:
+              - file
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Photo'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me/photos/order:
+    put:
+      summary: Reorder own photos
+      tags:
+      - professional
+      operationId: put_professional_me_photos_order
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                photo_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+              required:
+              - photo_ids
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Photo'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me/photos/{photoId}:
+    patch:
+      summary: Set primary / position (own photo only)
+      tags:
+      - professional
+      operationId: patch_professional_me_photos_photoId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: photoId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_primary:
+                  type: boolean
+                position:
+                  type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Photo'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    delete:
+      summary: Delete an own photo
+      tags:
+      - professional
+      operationId: delete_professional_me_photos_photoId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: photoId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me/preview:
+    get:
+      summary: Public preview of the own profile
+      tags:
+      - professional
+      operationId: get_professional_me_preview
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicProfile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/professional/me/publication-status:
+    get:
+      summary: Published or not, and why (no amounts)
+      tags:
+      - professional
+      operationId: get_professional_me_publication_status
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationStatus'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/billing/subscription:
+    get:
+      summary: Current subscription, entitlement and in-app reminder
+      tags:
+      - billing
+      operationId: get_billing_subscription
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionView'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    post:
+      summary: Subscribe (establishment VERIFIED) → invoice URL
+      tags:
+      - billing
+      operationId: post_billing_subscription
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plan_code:
+                  type: string
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+        '502':
+          description: Payment provider unavailable
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/v1/billing/subscription/renew:
+    post:
+      summary: Invoice of the next period / regularise PAST_DUE
+      tags:
+      - billing
+      operationId: post_billing_subscription_renew
+      security:
+      - bearerAuth: []
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/billing/subscription/cancel:
+    post:
+      summary: Cancel at period end
+      tags:
+      - billing
+      operationId: post_billing_subscription_cancel
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionView'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/billing/subscription/resume:
+    post:
+      summary: Undo the cancellation
+      tags:
+      - billing
+      operationId: post_billing_subscription_resume
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionView'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/billing/payments:
+    get:
+      summary: Payment history
+      tags:
+      - billing
+      operationId: get_billing_payments
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagePayment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/billing/payments/{id}:
+    get:
+      summary: Payment status (polling)
+      tags:
+      - billing
+      operationId: get_billing_payments_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/billing/invoices:
+    get:
+      summary: Invoices
+      tags:
+      - billing
+      operationId: get_billing_invoices
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageInvoice'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/billing/invoices/{id}/pdf:
+    get:
+      summary: Invoice PDF
+      tags:
+      - billing
+      operationId: get_billing_invoices_id_pdf
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/client/me:
+    get:
+      summary: Client account
+      tags:
+      - client
+      operationId: get_client_me
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    put:
+      summary: Change username
+      tags:
+      - client
+      operationId: put_client_me
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+              required:
+              - username
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+    delete:
+      summary: Delete the account (password required)
+      tags:
+      - client
+      operationId: delete_client_me
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+              required:
+              - password
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/client/favorites:
+    get:
+      summary: Favourites (unpublished ones shown as unavailable)
+      tags:
+      - client
+      operationId: get_client_favorites
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageFavorite'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/client/favorites/{profileId}:
+    put:
+      summary: Add a favourite (idempotent)
+      tags:
+      - client
+      operationId: put_client_favorites_profileId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    delete:
+      summary: Remove a favourite
+      tags:
+      - client
+      operationId: delete_client_favorites_profileId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/stats:
+    get:
+      summary: KPIs
+      tags:
+      - admin
+      operationId: get_admin_stats
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStats'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/establishments:
+    get:
+      summary: Establishments
+      tags:
+      - admin
+      operationId: get_admin_establishments
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      - name: verification_status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: subscription_status
+        in: query
+        required: false
+        schema:
+          type: string
+          description: Status or NONE
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAdminEstablishmentRow'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/establishments/{id}:
+    get:
+      summary: Establishment detail
+      tags:
+      - admin
+      operationId: get_admin_establishments_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  establishment:
+                    $ref: '#/components/schemas/Establishment'
+                  manager:
+                    $ref: '#/components/schemas/User'
+                  profiles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminProfile'
+                  subscription:
+                    allOf:
+                    - $ref: '#/components/schemas/Subscription'
+                    nullable: true
+                  blocking_reasons:
+                    type: array
+                    items:
+                      type: string
+                  history:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/establishments/{id}/hide:
+    post:
+      summary: Hide (reason)
+      tags:
+      - admin
+      operationId: post_admin_establishments_id_hide
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/establishments/{id}/unhide:
+    post:
+      summary: Unhide
+      tags:
+      - admin
+      operationId: post_admin_establishments_id_unhide
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/profiles:
+    get:
+      summary: All profiles
+      tags:
+      - admin
+      operationId: get_admin_profiles
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      - name: establishment_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: published
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: hidden
+        in: query
+        required: false
+        schema:
+          type: boolean
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAdminProfile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/profiles/{id}/hide:
+    post:
+      summary: Hide a profile (reason)
+      tags:
+      - admin
+      operationId: post_admin_profiles_id_hide
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/profiles/{id}/unhide:
+    post:
+      summary: Unhide a profile
+      tags:
+      - admin
+      operationId: post_admin_profiles_id_unhide
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/profiles/{id}/photos/{photoId}:
+    delete:
+      summary: Remove a photo (reason)
+      tags:
+      - admin
+      operationId: delete_admin_profiles_id_photos_photoId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: photoId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/users:
+    get:
+      summary: Users
+      tags:
+      - admin
+      operationId: get_admin_users
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      - name: role
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/Role'
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAdminUser'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/users/{id}:
+    get:
+      summary: User detail
+      tags:
+      - admin
+      operationId: get_admin_users_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/AdminUser'
+                  active_sessions:
+                    type: integer
+                  history:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  establishment:
+                    $ref: '#/components/schemas/EstablishmentRef'
+                  profile:
+                    $ref: '#/components/schemas/AdminProfile'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    delete:
+      summary: Delete / anonymise (reason)
+      tags:
+      - admin
+      operationId: delete_admin_users_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/clients:
+    get:
+      summary: Clients
+      tags:
+      - admin
+      operationId: get_admin_clients
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAdminUser'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/users/{id}/suspend:
+    post:
+      summary: Suspend (never an admin; manager → whole establishment)
+      tags:
+      - admin
+      operationId: post_admin_users_id_suspend
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/admin/users/{id}/restore:
+    post:
+      summary: Restore
+      tags:
+      - admin
+      operationId: post_admin_users_id_restore
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/admin/users/{id}/password-reset:
+    post:
+      summary: Temporary password (MANAGER accounts only)
+      tags:
+      - admin
+      operationId: post_admin_users_id_password_reset
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Reason'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemporaryPassword'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/subscriptions:
+    get:
+      summary: Subscriptions
+      tags:
+      - admin
+      operationId: get_admin_subscriptions
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAdminSubscription'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/payments:
+    get:
+      summary: Payments
+      tags:
+      - admin
+      operationId: get_admin_payments
+      security:
+      - bearerAuth: []
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/page_size'
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: establishment_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAdminPayment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/payments/{id}/reconcile:
+    post:
+      summary: Re-query the provider; optionally accept a PARTIAL payment
+      tags:
+      - admin
+      operationId: post_admin_payments_id_reconcile
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                force_paid:
+                  type: boolean
+              required:
+              - reason
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPayment'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/admin/categories:
+    get:
+      summary: All categories
+      tags:
+      - admin
+      operationId: get_admin_categories
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    post:
+      summary: Create a category
+      tags:
+      - admin
+      operationId: post_admin_categories
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/admin/categories/{id}:
+    put:
+      summary: Update a category
+      tags:
+      - admin
+      operationId: put_admin_categories_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+    delete:
+      summary: Delete (or deactivate when used)
+      tags:
+      - admin
+      operationId: delete_admin_categories_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResult'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/regions:
+    get:
+      summary: All regions and cities
+      tags:
+      - admin
+      operationId: get_admin_regions
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Region'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+    post:
+      summary: Create a region or city
+      tags:
+      - admin
+      operationId: post_admin_regions
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegionInput'
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+  /api/v1/admin/regions/{id}:
+    put:
+      summary: Update a region or city
+      tags:
+      - admin
+      operationId: put_admin_regions_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegionInput'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+        '409':
+          $ref: '#/components/responses/409'
+    delete:
+      summary: Delete (or deactivate when used)
+      tags:
+      - admin
+      operationId: delete_admin_regions_id
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResult'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/audit-logs:
+    get:
+      summary: Audit trail (cursor pagination)
+      tags:
+      - admin
+      operationId: get_admin_audit_logs
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: action
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: severity
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: actor_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: target_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: target_id
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  next_cursor:
+                    type: string
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/audit-logs/export:
+    get:
+      summary: CSV export (audited, 10 000 rows max)
+      tags:
+      - admin
+      operationId: get_admin_audit_logs_export
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: action
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: severity
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: actor_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: target_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: target_id
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          description: CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/admin/security-events:
+    get:
+      summary: Security events
+      tags:
+      - admin
+      operationId: get_admin_security_events
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: action
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: severity
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: actor_id
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: target_type
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: target_id
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  next_cursor:
+                    type: string
+                    nullable: true
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/webhooks/nowpayments:
+    post:
+      summary: NOWPayments IPN
+      tags:
+      - webhooks
+      operationId: post_webhooks_nowpayments
+      security: []
+      parameters:
+      - name: x-nowpayments-sig
+        in: header
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Raw IPN; HMAC-SHA512 of the key-sorted JSON in x-nowpayments-sig
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '429':
+          $ref: '#/components/responses/429'
+        '500':
+          description: Internal error (the provider retries)
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-rt
+  parameters:
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    page_size:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+  responses:
+    '400':
+      description: Malformed request
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    '401':
+      description: Missing or invalid token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    '403':
+      description: Forbidden (role, password change required, CSRF)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    '404':
+      description: Not found or outside the actor's scope
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    '409':
+      description: Conflict / invalid state
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    '422':
+      description: Validation failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    '429':
+      description: Rate limited (Retry-After header)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+      required:
+      - type
+      - title
+      - status
+    Role:
+      type: string
+      enum:
+      - ADMIN
+      - MANAGER
+      - PROFESSIONAL
+      - CLIENT
+    Visibility:
+      type: string
+      enum:
+      - PUBLIC
+      - CLIENTS
+      - HIDDEN
+    ContactType:
+      type: string
+      enum:
+      - PHONE
+      - WHATSAPP
+      - TELEGRAM
+      - INSTAGRAM
+      - FACEBOOK
+      - WEBSITE
+      - OTHER
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - SUSPENDED
+          - DELETED
+        must_change_password:
+          type: boolean
+        recovery_codes_confirmed:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - id
+      - username
+      - role
+      - status
+      - must_change_password
+      - recovery_codes_confirmed
+      - created_at
+      - last_login_at
+    AdminUser:
+      allOf:
+      - $ref: '#/components/schemas/User'
+      - type: object
+        properties:
+          status_reason:
+            type: string
+            nullable: true
+          failed_login_count:
+            type: integer
+          locked_until:
+            type: string
+            format: date-time
+            nullable: true
+          deleted_at:
+            type: string
+            format: date-time
+            nullable: true
+        required:
+        - status_reason
+        - failed_login_count
+        - locked_until
+        - deleted_at
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum:
+          - Bearer
+        expires_at:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/User'
+        recovery_codes:
+          type: array
+          items:
+            type: string
+            description: Shown only once, at registration
+      required:
+      - access_token
+      - user
+    EstablishmentRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        display_name:
+          type: string
+        verification_status:
+          type: string
+      required:
+      - id
+      - slug
+      - display_name
+      - verification_status
+    ProfileRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        display_name:
+          type: string
+        status:
+          type: string
+        is_published:
+          type: boolean
+      required:
+      - id
+      - slug
+      - display_name
+      - status
+      - is_published
+    Me:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        recovery_codes_remaining:
+          type: integer
+        establishment:
+          $ref: '#/components/schemas/EstablishmentRef'
+        profile:
+          $ref: '#/components/schemas/ProfileRef'
+      required:
+      - user
+      - recovery_codes_remaining
+      - establishment
+      - profile
+    RecoveryStatus:
+      type: object
+      properties:
+        remaining:
+          type: integer
+        confirmed:
+          type: boolean
+        low:
+          type: boolean
+      required:
+      - remaining
+      - confirmed
+      - low
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+        user_agent:
+          type: string
+        current:
+          type: boolean
+      required:
+      - id
+      - created_at
+      - last_used_at
+      - expires_at
+      - user_agent
+      - current
+    Region:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+          - REGION
+          - CITY
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+      - id
+      - slug
+      - name
+      - kind
+      - parent_id
+      - is_active
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        position:
+          type: integer
+        is_active:
+          type: boolean
+      required:
+      - id
+      - slug
+      - name
+      - description
+      - parent_id
+      - position
+      - is_active
+    Attributes:
+      type: object
+      properties:
+        hair_colors:
+          type: array
+          items:
+            type: string
+        eye_colors:
+          type: array
+          items:
+            type: string
+        body_types:
+          type: array
+          items:
+            type: string
+        languages:
+          type: array
+          items:
+            type: string
+        contact_types:
+          type: array
+          items:
+            type: string
+        visibilities:
+          type: array
+          items:
+            type: string
+        sorts:
+          type: array
+          items:
+            type: string
+        extra_attributes:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+      - hair_colors
+      - eye_colors
+      - body_types
+      - languages
+      - contact_types
+      - visibilities
+      - sorts
+      - extra_attributes
+    SelectableEstablishment:
+      type: object
+      properties:
+        slug:
+          type: string
+        display_name:
+          type: string
+        city:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+      required:
+      - slug
+      - display_name
+      - city
+      - region
+    Contact:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/ContactType'
+        value:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/Visibility'
+        is_verification_phone:
+          type: boolean
+        position:
+          type: integer
+      required:
+      - id
+      - type
+      - value
+      - visibility
+      - is_verification_phone
+      - position
+    ContactInput:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ContactType'
+        value:
+          type: string
+        visibility:
+          $ref: '#/components/schemas/Visibility'
+        is_verification_phone:
+          type: boolean
+          description: Establishment only; exactly one PHONE, never exposed
+      required:
+      - type
+      - value
+      - visibility
+    OpeningHours:
+      type: object
+      description: Keys mon..sun, up to 3 ranges each
+      additionalProperties:
+        type: array
+        items:
+          type: object
+          properties:
+            open:
+              type: string
+              pattern: ^\d{2}:\d{2}$
+            close:
+              type: string
+              pattern: ^\d{2}:\d{2}$
+    Establishment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        display_name:
+          type: string
+        legal_name:
+          type: string
+        company_number:
+          type: string
+          nullable: true
+        approval_number:
+          type: string
+          nullable: true
+        description:
+          type: string
+        opening_hours:
+          $ref: '#/components/schemas/OpeningHours'
+        region:
+          allOf:
+          - $ref: '#/components/schemas/Region'
+          nullable: true
+        city:
+          allOf:
+          - $ref: '#/components/schemas/Region'
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        address_public:
+          type: boolean
+        verification_status:
+          type: string
+          enum:
+          - DRAFT
+          - PENDING
+          - VERIFIED
+          - REJECTED
+        verification_note:
+          type: string
+          nullable: true
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+        is_hidden:
+          type: boolean
+        hidden_reason:
+          type: string
+          nullable: true
+        contacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contact'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - slug
+      - display_name
+      - legal_name
+      - company_number
+      - approval_number
+      - description
+      - opening_hours
+      - region
+      - city
+      - address
+      - address_public
+      - verification_status
+      - verification_note
+      - submitted_at
+      - verified_at
+      - is_hidden
+      - hidden_reason
+      - contacts
+      - created_at
+      - updated_at
+    EstablishmentInput:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 80
+        legal_name:
+          type: string
+          maxLength: 160
+        company_number:
+          type: string
+          description: Belgian enterprise number (BCE), checksum validated
+        approval_number:
+          type: string
+          description: Approval number (loi du 3 mai 2024)
+        description:
+          type: string
+          maxLength: 5000
+        opening_hours:
+          $ref: '#/components/schemas/OpeningHours'
+        region_id:
+          type: string
+          format: uuid
+          nullable: true
+        city_id:
+          type: string
+          format: uuid
+          nullable: true
+        address:
+          type: string
+          maxLength: 300
+          nullable: true
+        address_public:
+          type: boolean
+    Photo:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          description: Short-lived signed URL
+        is_primary:
+          type: boolean
+        position:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - url
+      - is_primary
+      - position
+      - width
+      - height
+      - created_at
+    Rate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        duration_minutes:
+          type: integer
+          nullable: true
+        amount_cents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        position:
+          type: integer
+      required:
+      - id
+      - label
+      - duration_minutes
+      - amount_cents
+      - currency
+      - position
+    RateInput:
+      type: object
+      properties:
+        label:
+          type: string
+          maxLength: 60
+        duration_minutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          nullable: true
+        amount_cents:
+          type: integer
+          format: int64
+          minimum: 1
+      required:
+      - label
+      - amount_cents
+    Publication:
+      type: object
+      properties:
+        published:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        reasons:
+          type: array
+          items:
+            type: string
+            enum:
+            - MANAGER_ACCOUNT_INACTIVE
+            - ESTABLISHMENT_NOT_VERIFIED
+            - ESTABLISHMENT_HIDDEN
+            - ESTABLISHMENT_SUBSCRIPTION_INACTIVE
+            - PENDING_MANAGER_APPROVAL
+            - PROFILE_NOT_ACTIVE
+            - PROFILE_NOT_ATTESTED
+            - PROFILE_HIDDEN
+            - NO_PRIMARY_PHOTO
+            - PROFESSIONAL_ACCOUNT_INACTIVE
+            - ACTIVE_PROFILES_QUOTA_EXCEEDED
+      required:
+      - published
+      - published_at
+      - reasons
+    Attestation:
+      type: object
+      properties:
+        attested:
+          type: boolean
+        attested_at:
+          type: string
+          format: date-time
+          nullable: true
+        age:
+          type: integer
+          nullable: true
+        birth_date:
+          type: string
+          format: date
+          description: Manager only
+        employment_reference:
+          type: string
+          description: Manager only
+      required:
+      - attested
+      - attested_at
+      - age
+      - birth_date
+      - employment_reference
+    LinkedAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        status:
+          type: string
+      required:
+      - id
+      - username
+      - status
+    LastEdit:
+      type: object
+      properties:
+        by:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        at:
+          type: string
+          format: date-time
+      required:
+      - by
+      - role
+      - at
+    ProfileStatus:
+      type: string
+      enum:
+      - PENDING_APPROVAL
+      - DRAFT
+      - ACTIVE
+      - ARCHIVED
+    Profile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProfileStatus'
+        display_name:
+          type: string
+        headline:
+          type: string
+        description:
+          type: string
+        height_cm:
+          type: integer
+          nullable: true
+        weight_kg:
+          type: integer
+          nullable: true
+        hair_color:
+          type: string
+          nullable: true
+        eye_color:
+          type: string
+          nullable: true
+        body_type:
+          type: string
+          nullable: true
+        languages:
+          type: array
+          items:
+            type: string
+        extra_attributes:
+          type: object
+          additionalProperties:
+            type: string
+        price_from_cents:
+          type: integer
+          format: int64
+          nullable: true
+        is_hidden:
+          type: boolean
+        hidden_reason:
+          type: string
+          nullable: true
+        attestation:
+          $ref: '#/components/schemas/Attestation'
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Photo'
+        contacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contact'
+        rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rate'
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        establishment:
+          $ref: '#/components/schemas/EstablishmentRef'
+        linked_account:
+          $ref: '#/components/schemas/LinkedAccount'
+        last_edit:
+          $ref: '#/components/schemas/LastEdit'
+        publication:
+          $ref: '#/components/schemas/Publication'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - slug
+      - status
+      - display_name
+      - headline
+      - description
+      - height_cm
+      - weight_kg
+      - hair_color
+      - eye_color
+      - body_type
+      - languages
+      - extra_attributes
+      - price_from_cents
+      - is_hidden
+      - hidden_reason
+      - attestation
+      - photos
+      - contacts
+      - rates
+      - categories
+      - establishment
+      - linked_account
+      - last_edit
+      - publication
+      - created_at
+    ProfileInput:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 60
+        headline:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 5000
+        height_cm:
+          type: integer
+          minimum: 120
+          maximum: 230
+          nullable: true
+        weight_kg:
+          type: integer
+          minimum: 35
+          maximum: 250
+          nullable: true
+        hair_color:
+          type: string
+          nullable: true
+        eye_color:
+          type: string
+          nullable: true
+        body_type:
+          type: string
+          nullable: true
+        languages:
+          type: array
+          items:
+            type: string
+            description: ISO 639-1
+        extra_attributes:
+          type: object
+          additionalProperties:
+            type: string
+          description: Closed list, see /attributes
+      required:
+      - display_name
+    ProfileSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        display_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProfileStatus'
+        attested:
+          type: boolean
+        is_hidden:
+          type: boolean
+        photo_url:
+          type: string
+        linked_account:
+          allOf:
+          - $ref: '#/components/schemas/LinkedAccount'
+          nullable: true
+        last_edit:
+          $ref: '#/components/schemas/LastEdit'
+        publication:
+          $ref: '#/components/schemas/Publication'
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - slug
+      - display_name
+      - status
+      - attested
+      - is_hidden
+      - photo_url
+      - linked_account
+      - last_edit
+      - publication
+      - created_at
+    AdminProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        establishment_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+          nullable: true
+        slug:
+          type: string
+        display_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProfileStatus'
+        attested:
+          type: boolean
+        is_hidden:
+          type: boolean
+        hidden_reason:
+          type: string
+          nullable: true
+        is_published:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - establishment_id
+      - user_id
+      - slug
+      - display_name
+      - status
+      - attested
+      - is_hidden
+      - hidden_reason
+      - is_published
+      - published_at
+      - created_at
+      - updated_at
+    Place:
+      type: object
+      properties:
+        slug:
+          type: string
+        name:
+          type: string
+      required:
+      - slug
+      - name
+    PublicEstablishmentRef:
+      type: object
+      properties:
+        slug:
+          type: string
+        display_name:
+          type: string
+        legal_name:
+          type: string
+        approval_number:
+          type: string
+        city:
+          allOf:
+          - $ref: '#/components/schemas/Place'
+          nullable: true
+        region:
+          allOf:
+          - $ref: '#/components/schemas/Place'
+          nullable: true
+      required:
+      - slug
+      - display_name
+      - legal_name
+      - approval_number
+      - city
+      - region
+    ProfileCard:
+      type: object
+      properties:
+        slug:
+          type: string
+        display_name:
+          type: string
+        headline:
+          type: string
+        age:
+          type: integer
+          nullable: true
+        price_from_cents:
+          type: integer
+          format: int64
+          nullable: true
+        photo_url:
+          type: string
+          nullable: true
+        establishment:
+          $ref: '#/components/schemas/PublicEstablishmentRef'
+        published_at:
+          type: string
+          format: date-time
+      required:
+      - slug
+      - display_name
+      - headline
+      - age
+      - price_from_cents
+      - photo_url
+      - establishment
+      - published_at
+    PublicContact:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ContactType'
+        value:
+          type: string
+        visibility:
+          type: string
+          description: Preview only
+      required:
+      - type
+      - value
+      - visibility
+    PublicProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        display_name:
+          type: string
+        headline:
+          type: string
+        description:
+          type: string
+        age:
+          type: integer
+          nullable: true
+        height_cm:
+          type: integer
+          nullable: true
+        weight_kg:
+          type: integer
+          nullable: true
+        hair_color:
+          type: string
+          nullable: true
+        eye_color:
+          type: string
+          nullable: true
+        body_type:
+          type: string
+          nullable: true
+        languages:
+          type: array
+          items:
+            type: string
+        extra_attributes:
+          type: object
+          additionalProperties:
+            type: string
+        price_from_cents:
+          type: integer
+          format: int64
+          nullable: true
+        photos:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              url:
+                type: string
+              width:
+                type: integer
+              height:
+                type: integer
+              is_primary:
+                type: boolean
+            required:
+            - id
+            - url
+            - width
+            - height
+            - is_primary
+        rates:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              duration_minutes:
+                type: integer
+                nullable: true
+              amount_cents:
+                type: integer
+                format: int64
+              currency:
+                type: string
+            required:
+            - label
+            - duration_minutes
+            - amount_cents
+            - currency
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Place'
+        contacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicContact'
+        contacts_restricted:
+          type: boolean
+          description: CLIENTS contacts exist but are hidden for this viewer
+        contacts_rate_limited:
+          type: boolean
+        establishment:
+          $ref: '#/components/schemas/PublicEstablishmentRef'
+        published:
+          type: boolean
+      required:
+      - id
+      - slug
+      - display_name
+      - headline
+      - description
+      - age
+      - height_cm
+      - weight_kg
+      - hair_color
+      - eye_color
+      - body_type
+      - languages
+      - extra_attributes
+      - price_from_cents
+      - photos
+      - rates
+      - categories
+      - contacts
+      - contacts_restricted
+      - contacts_rate_limited
+      - establishment
+      - published
+    PublicEstablishment:
+      allOf:
+      - $ref: '#/components/schemas/PublicEstablishmentRef'
+      - type: object
+        properties:
+          description:
+            type: string
+          opening_hours:
+            $ref: '#/components/schemas/OpeningHours'
+          address:
+            type: string
+            nullable: true
+          contacts:
+            type: array
+            items:
+              $ref: '#/components/schemas/PublicContact'
+          contacts_restricted:
+            type: boolean
+          profiles:
+            type: array
+            items:
+              $ref: '#/components/schemas/ProfileCard'
+        required:
+        - description
+        - opening_hours
+        - address
+        - contacts
+        - contacts_restricted
+        - profiles
+    Plan:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        amount_cents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        interval_days:
+          type: integer
+        trial_days:
+          type: integer
+        grace_days:
+          type: integer
+        max_active_profiles:
+          type: integer
+          nullable: true
+        max_pending_profiles:
+          type: integer
+      required:
+      - code
+      - name
+      - amount_cents
+      - currency
+      - interval_days
+      - trial_days
+      - grace_days
+      - max_active_profiles
+      - max_pending_profiles
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - TRIALING
+          - ACTIVE
+          - PAST_DUE
+          - CANCELED
+          - INCOMPLETE
+        current_period_start:
+          type: string
+          format: date-time
+          nullable: true
+        current_period_end:
+          type: string
+          format: date-time
+          nullable: true
+        grace_until:
+          type: string
+          format: date-time
+          nullable: true
+        cancel_at_period_end:
+          type: boolean
+        canceled_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - status
+      - current_period_start
+      - current_period_end
+      - grace_until
+      - cancel_at_period_end
+      - canceled_at
+      - created_at
+    PaymentStatus:
+      type: string
+      enum:
+      - PENDING
+      - CONFIRMING
+      - PARTIAL
+      - PAID
+      - FAILED
+      - EXPIRED
+      - REFUNDED
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/PaymentStatus'
+        amount_cents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        period_start:
+          type: string
+          format: date-time
+          nullable: true
+        period_end:
+          type: string
+          format: date-time
+          nullable: true
+        invoice_url:
+          type: string
+          description: NOWPayments hosted invoice
+          nullable: true
+        pay_currency:
+          type: string
+          nullable: true
+        pay_amount_expected:
+          type: string
+          nullable: true
+        pay_amount_received:
+          type: string
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - status
+      - amount_cents
+      - currency
+      - period_start
+      - period_end
+      - invoice_url
+      - pay_currency
+      - pay_amount_expected
+      - pay_amount_received
+      - paid_at
+      - expires_at
+      - created_at
+    AdminPayment:
+      allOf:
+      - $ref: '#/components/schemas/Payment'
+      - type: object
+        properties:
+          subscription_id:
+            type: string
+            format: uuid
+          establishment_id:
+            type: string
+            format: uuid
+          provider:
+            type: string
+          provider_invoice_id:
+            type: string
+            nullable: true
+          provider_payment_id:
+            type: string
+            nullable: true
+          provider_status:
+            type: string
+            nullable: true
+        required:
+        - subscription_id
+        - establishment_id
+        - provider
+        - provider_invoice_id
+        - provider_payment_id
+        - provider_status
+    Reminder:
+      type: object
+      properties:
+        level:
+          type: string
+          enum:
+          - none
+          - renewal_due
+          - past_due
+          - grace_over
+        due_at:
+          type: string
+          format: date-time
+        days_left:
+          type: integer
+      required:
+      - level
+      - due_at
+      - days_left
+    SubscriptionView:
+      type: object
+      properties:
+        subscription:
+          allOf:
+          - $ref: '#/components/schemas/Subscription'
+          nullable: true
+        plan:
+          allOf:
+          - $ref: '#/components/schemas/Plan'
+          nullable: true
+        entitled:
+          type: boolean
+        open_payment:
+          allOf:
+          - $ref: '#/components/schemas/Payment'
+          nullable: true
+        reminder:
+          $ref: '#/components/schemas/Reminder'
+      required:
+      - subscription
+      - plan
+      - entitled
+      - open_payment
+      - reminder
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: string
+        payment_id:
+          type: string
+          format: uuid
+        amount_cents:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        issued_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - number
+      - payment_id
+      - amount_cents
+      - currency
+      - issued_at
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        occurred_at:
+          type: string
+          format: date-time
+        actor_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        actor_role:
+          type: string
+          nullable: true
+        action:
+          type: string
+        category:
+          type: string
+          enum:
+          - SECURITY
+          - ADMIN
+          - BILLING
+          - ESTABLISHMENT
+          - PROFILE
+          - AUTH
+        severity:
+          type: string
+          enum:
+          - INFO
+          - WARN
+          - CRITICAL
+        target_type:
+          type: string
+          nullable: true
+        target_id:
+          type: string
+          nullable: true
+        ip_hash:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+      required:
+      - id
+      - occurred_at
+      - actor_user_id
+      - actor_role
+      - action
+      - category
+      - severity
+      - target_type
+      - target_id
+      - ip_hash
+      - user_agent
+      - request_id
+      - metadata
+    Reason:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+      required:
+      - reason
+    TemporaryPassword:
+      type: object
+      properties:
+        temporary_password:
+          type: string
+          description: 20 characters, shown once (RM-07)
+      required:
+      - temporary_password
+    ManagerOverview:
+      type: object
+      properties:
+        establishment:
+          $ref: '#/components/schemas/EstablishmentRef'
+        verification_note:
+          type: string
+          nullable: true
+        checklist:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              done:
+                type: boolean
+            required:
+            - key
+            - done
+        blocking_reasons:
+          type: array
+          items:
+            type: string
+        subscription:
+          allOf:
+          - $ref: '#/components/schemas/Subscription'
+          nullable: true
+        entitled:
+          type: boolean
+        pending_count:
+          type: integer
+        profiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileSummary'
+      required:
+      - establishment
+      - verification_note
+      - checklist
+      - blocking_reasons
+      - subscription
+      - entitled
+      - pending_count
+      - profiles
+    EstablishmentStats:
+      type: object
+      properties:
+        days:
+          type: integer
+        views:
+          type: integer
+        contact_views:
+          type: integer
+        profiles:
+          type: array
+          items:
+            type: object
+            properties:
+              profile_id:
+                type: string
+                format: uuid
+              display_name:
+                type: string
+              views:
+                type: integer
+              contact_views:
+                type: integer
+            required:
+            - profile_id
+            - display_name
+            - views
+            - contact_views
+      required:
+      - days
+      - views
+      - contact_views
+      - profiles
+    PublicationStatus:
+      type: object
+      properties:
+        published:
+          type: boolean
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ProfileStatus'
+        attested:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            type: string
+      required:
+      - published
+      - published_at
+      - status
+      - attested
+      - reasons
+    Favorite:
+      type: object
+      properties:
+        profile_id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        display_name:
+          type: string
+        headline:
+          type: string
+        available:
+          type: boolean
+        age:
+          type: integer
+          nullable: true
+        price_from_cents:
+          type: integer
+          nullable: true
+        establishment_name:
+          type: string
+        city:
+          type: string
+          nullable: true
+        added_at:
+          type: string
+          format: date-time
+      required:
+      - profile_id
+      - slug
+      - display_name
+      - headline
+      - available
+      - age
+      - price_from_cents
+      - establishment_name
+      - city
+      - added_at
+    AdminStats:
+      type: object
+      properties:
+        establishments_by_verification_status:
+          type: object
+          additionalProperties:
+            type: integer
+        pending_verifications:
+          type: integer
+        published_profiles:
+          type: integer
+        subscriptions_by_status:
+          type: object
+          additionalProperties:
+            type: integer
+        mrr_cents:
+          type: integer
+        users_by_role_and_status:
+          type: object
+        security_events_24h:
+          type: integer
+        upcoming_due:
+          type: array
+          items:
+            type: object
+            properties:
+              subscription_id:
+                type: string
+                format: uuid
+              establishment_name:
+                type: string
+              establishment_slug:
+                type: string
+              status:
+                type: string
+              current_period_end:
+                type: string
+                format: date-time
+            required:
+            - subscription_id
+            - establishment_name
+            - establishment_slug
+            - status
+            - current_period_end
+      required:
+      - establishments_by_verification_status
+      - pending_verifications
+      - published_profiles
+      - subscriptions_by_status
+      - mrr_cents
+      - users_by_role_and_status
+      - security_events_24h
+      - upcoming_due
+    AdminEstablishmentRow:
+      allOf:
+      - $ref: '#/components/schemas/Establishment'
+      - type: object
+        properties:
+          manager_username:
+            type: string
+          manager_status:
+            type: string
+          subscription_status:
+            type: string
+            nullable: true
+          profiles_count:
+            type: integer
+          published_count:
+            type: integer
+        required:
+        - manager_username
+        - manager_status
+        - subscription_status
+        - profiles_count
+        - published_count
+    AdminSubscription:
+      allOf:
+      - $ref: '#/components/schemas/Subscription'
+      - type: object
+        properties:
+          establishment_id:
+            type: string
+            format: uuid
+          establishment_name:
+            type: string
+          establishment_slug:
+            type: string
+          plan_code:
+            type: string
+        required:
+        - establishment_id
+        - establishment_name
+        - establishment_slug
+        - plan_code
+    CategoryInput:
+      type: object
+      properties:
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        position:
+          type: integer
+        is_active:
+          type: boolean
+      required:
+      - slug
+      - name
+    RegionInput:
+      type: object
+      properties:
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        slug:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+          - REGION
+          - CITY
+        is_active:
+          type: boolean
+      required:
+      - slug
+      - name
+      - kind
+    DeleteResult:
+      type: object
+      properties:
+        deleted:
+          type: boolean
+        deactivated:
+          type: boolean
+      required:
+      - deleted
+      - deactivated
+    PageProfileCard:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileCard'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PageProfileSummary:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProfileSummary'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PagePayment:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Payment'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PageInvoice:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PageFavorite:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Favorite'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PageAdminEstablishmentRow:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminEstablishmentRow'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PageAdminProfile:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminProfile'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PageAdminUser:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PageAdminSubscription:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminSubscription'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages
+    PageAdminPayment:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminPayment'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+      - items
+      - page
+      - page_size
+      - total
+      - total_pages

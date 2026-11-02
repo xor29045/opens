@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+tmp/
+backend/coverage.out
+node_modules/
+frontend/dist/
+frontend/.astro/
+frontend/test-results/
+frontend/playwright-report/

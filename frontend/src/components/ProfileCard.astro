@@ -1,0 +1,26 @@
+---
+// Server-rendered profile card (no hydration) used on the home page.
+import type { components } from '../lib/api/schema';
+import { eur } from '../lib/format';
+
+interface Props {
+  card: components['schemas']['ProfileCard'];
+  /** Eager-load the first cards, lazy-load the rest. */
+  eager?: boolean;
+}
+const { card, eager = false } = Astro.props;
+const place = card.establishment.city?.name ?? card.establishment.region?.name;
+---
+<a class="os-card" href={`/profils/${card.slug}`}>
+  <div class="os-card__media">
+    {card.photo_url && (
+      <img src={card.photo_url} alt="" loading={eager ? 'eager' : 'lazy'} decoding="async" />
+    )}
+  </div>
+  {card.price_from_cents != null && <span class="os-card__badge">dès {eur(card.price_from_cents)}</span>}
+  <div class="os-card__body">
+    <h3 class="os-card__name">{card.display_name}{card.age != null && <span>, {card.age}</span>}</h3>
+    <p class="os-card__meta">{card.establishment.display_name}{place && ` · ${place}`}</p>
+    {card.headline && <p class="os-card__headline">{card.headline}</p>}
+  </div>
+</a>

@@ -1,0 +1,8 @@
+---
+import Public from '../../layouts/Public.astro';
+import AuthForms from '../../features/auth/AuthForms.tsx';
+const next = Astro.url.searchParams.get('next');
+---
+<Public title="Administration" noindex={true}>
+  <AuthForms kind="admin" mode="login" next={next} client:only="react" />
+</Public>

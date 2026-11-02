@@ -1,0 +1,7 @@
+---
+import Public from '../../layouts/Public.astro';
+import { Recover } from '../../features/auth/PasswordForms.tsx';
+---
+<Public title="Mot de passe oublié" noindex={true}>
+  <Recover client:only="react" />
+</Public>

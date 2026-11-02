@@ -1,0 +1,175 @@
+---
+import Public from '../layouts/Public.astro';
+import ProfileCard from '../components/ProfileCard.astro';
+import { ssrGet } from '../lib/ssr';
+import type { components } from '../lib/api/schema';
+
+type Card = components['schemas']['ProfileCard'];
+type Region = components['schemas']['Region'];
+type Page<T> = { items: T[]; total: number };
+
+const [latest, regions] = await Promise.all([
+  ssrGet<Page<Card>>('/profiles?page_size=8&sort=recent'),
+  ssrGet<{ items: Region[] }>('/regions'),
+]);
+const cards = latest?.items ?? [];
+const total = latest?.total ?? 0;
+const allRegions = regions?.items ?? [];
+const regionList = allRegions.filter((r) => r.kind === 'REGION');
+const cities = allRegions.filter((r) => r.kind === 'CITY');
+const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
+---
+<Public
+  title="Maisons agréées et professionnel·les en Belgique"
+  description="Découvre les professionnel·les des maisons agréées en Belgique. Établissements vérifiés, profils attestés, coordonnées protégées."
+  contained={false}
+>
+  <section class="os-hero" aria-labelledby="hero-title">
+    <svg class="os-hero__deco" viewBox="0 0 1200 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g fill="none" stroke="currentColor" stroke-width="1">
+        <circle cx="1040" cy="120" r="180" />
+        <circle cx="1040" cy="120" r="260" />
+        <circle cx="1040" cy="120" r="340" />
+        <circle cx="1040" cy="120" r="420" />
+      </g>
+    </svg>
+    <div class="os-container os-hero__grid" style="position: relative;">
+      <div>
+        <span class="os-eyebrow">Belgique · Maisons agréées</span>
+        <h1 id="hero-title" class="os-title os-title--xl">
+          Des rencontres choisies,<br />dans des maisons <em>de confiance</em>.
+        </h1>
+        <p class="os-lead">
+          Parcours les profils des professionnel·les employé·es par des établissements agréés et vérifiés.
+          Chaque profil est attesté par sa maison. Tes recherches restent discrètes.
+        </p>
+        <form class="os-search" action="/profils" method="get" role="search" aria-label="Rechercher par ville">
+          <label for="hero-city" class="visually-hidden">Ville</label>
+          <select id="hero-city" name="city">
+            <option value="">Toutes les villes</option>
+            {regionList.map((r) => (
+              <optgroup label={r.name}>
+                {cities.filter((c) => c.parent_id === r.id).map((c) => <option value={c.slug}>{c.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+          <button class="os-btn os-btn--primary" type="submit">Explorer</button>
+        </form>
+        <div class="os-stats">
+          <div class="os-stat"><strong>{total}</strong><span>profils publiés</span></div>
+          <div class="os-stat"><strong>100 %</strong><span>maisons vérifiées</span></div>
+          <div class="os-stat"><strong>18+</strong><span>âge attesté par l’employeur</span></div>
+        </div>
+      </div>
+      <div class="os-mosaic" aria-hidden="true">
+        {[0, 1, 2, 3].map((i) => (
+          <div class="os-mosaic__item">
+            {mosaic[i]?.photo_url ? (
+              <img src={mosaic[i].photo_url} alt="" loading="eager" decoding="async" />
+            ) : (
+              <div class="os-mosaic__placeholder">
+                <svg width="56" height="56" viewBox="0 0 64 64"><circle cx="32" cy="32" r="13" fill="none" stroke="currentColor" stroke-width="4" /></svg>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="os-section" aria-labelledby="latest-title">
+    <div class="os-container">
+      <div class="os-section-head">
+        <div>
+          <span class="os-eyebrow">À découvrir</span>
+          <h2 id="latest-title" class="os-title os-title--lg">Nouveaux profils</h2>
+        </div>
+        <a class="os-link-arrow" href="/profils">Voir tout le catalogue →</a>
+      </div>
+      {cards.length > 0 ? (
+        <div class="os-cards">
+          {cards.map((c, i) => <ProfileCard card={c} eager={i < 4} />)}
+        </div>
+      ) : (
+        <p class="os-lead">Les premiers profils arrivent bientôt. Les maisons sont en cours de vérification.</p>
+      )}
+    </div>
+  </section>
+
+  {cities.length > 0 && (
+    <section class="os-section" aria-labelledby="cities-title">
+      <div class="os-container">
+        <div class="os-section-head">
+          <div>
+            <span class="os-eyebrow">Près de chez toi</span>
+            <h2 id="cities-title" class="os-title os-title--lg">Explorer par ville</h2>
+          </div>
+        </div>
+        <div class="os-chips">
+          {cities.map((c) => <a class="os-chip" href={`/profils?city=${c.slug}`}>{c.name}</a>)}
+        </div>
+      </div>
+    </section>
+  )}
+
+  <section class="os-section" aria-labelledby="trust-title">
+    <div class="os-container">
+      <div class="os-section-head">
+        <div>
+          <span class="os-eyebrow">Notre engagement</span>
+          <h2 id="trust-title" class="os-title os-title--lg">La confiance, avant tout</h2>
+        </div>
+      </div>
+      <div class="os-features">
+        <article class="os-feature">
+          <div class="os-feature__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" /><path d="M9 12l2 2 4-4" /></svg>
+          </div>
+          <h3>Maisons vérifiées</h3>
+          <p>Le numéro d’entreprise et l’agrément de chaque établissement sont contrôlés avant toute publication. L’agrément est affiché sur chaque fiche.</p>
+        </article>
+        <article class="os-feature">
+          <div class="os-feature__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
+          </div>
+          <h3>Profils attestés</h3>
+          <p>Chaque professionnel·le est salarié·e de sa maison, qui atteste son âge et son accord écrit pour la publication.</p>
+        </article>
+        <article class="os-feature">
+          <div class="os-feature__icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" /></svg>
+          </div>
+          <h3>Discrétion totale</h3>
+          <p>Aucune adresse e-mail demandée. Un pseudo suffit pour créer ton compte et accéder aux coordonnées réservées aux membres.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="os-section" aria-label="Rejoindre la plateforme">
+    <div class="os-container os-split">
+      <div class="os-split__panel os-split__panel--accent">
+        <span class="os-eyebrow">Établissements</span>
+        <h3>Vous dirigez une maison agréée ?</h3>
+        <p>Présentez votre établissement et votre équipe à une clientèle qui cherche la sérénité.</p>
+        <ul>
+          <li>Fiche établissement avec horaires et coordonnées</li>
+          <li>Profils illimités, gérés depuis un seul compte</li>
+          <li>Statistiques de consultation</li>
+        </ul>
+        <a class="os-btn os-btn--primary" href="/gerant/register">Inscrire ma maison</a>
+      </div>
+      <div class="os-split__panel">
+        <span class="os-eyebrow">Professionnel·les</span>
+        <h3>Vous travaillez dans une maison ?</h3>
+        <p>Créez votre compte, choisissez votre maison et préparez votre profil : photos, présentation, tarifs, coordonnées.</p>
+        <ul>
+          <li>Vous gérez vous-même votre profil</li>
+          <li>Vous choisissez la visibilité de chaque coordonnée</li>
+          <li>Publication après validation par votre maison</li>
+        </ul>
+        <a class="os-btn os-btn--ghost" href="/pro/register">Créer mon profil</a>
+      </div>
+    </div>
+  </section>
+</Public>

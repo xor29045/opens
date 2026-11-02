@@ -1,0 +1,70 @@
+---
+import Base from './Base.astro';
+import PublicNavbar from '../components/PublicNavbar.tsx';
+import AgeGate from '../components/AgeGate.astro';
+interface Props {
+  title: string;
+  description?: string;
+  noindex?: boolean;
+  /** Wrap the slot in the standard page container (false for full-bleed pages). */
+  contained?: boolean;
+}
+const { title, description, noindex, contained = true } = Astro.props;
+const year = new Date().getFullYear();
+---
+<Base title={title} description={description} noindex={noindex}>
+  <PublicNavbar client:load />
+  <main id="contenu" class="os-main">
+    {contained ? (
+      <div class="os-container os-page"><slot /></div>
+    ) : (
+      <slot />
+    )}
+  </main>
+  <footer class="os-footer">
+    <div class="os-container">
+      <div class="os-footer__grid">
+        <div class="os-footer__brand">
+          <a class="os-wordmark" href="/">Open<span>•</span>sex</a>
+          <p>
+            Le catalogue des professionnel·les des maisons agréées en Belgique. Chaque établissement est vérifié,
+            chaque profil est attesté par son employeur.
+          </p>
+        </div>
+        <nav aria-label="Découvrir">
+          <h2>Découvrir</h2>
+          <ul>
+            <li><a href="/profils">Catalogue</a></li>
+            <li><a href="/profils?sort=recent">Nouveaux profils</a></li>
+            <li><a href="/client/register">Créer un compte client</a></li>
+            <li><a href="/client/login">Connexion</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Professionnels">
+          <h2>Professionnels</h2>
+          <ul>
+            <li><a href="/gerant/register">Inscrire ma maison</a></li>
+            <li><a href="/gerant/login">Espace gérant</a></li>
+            <li><a href="/pro/register">Rejoindre ma maison</a></li>
+            <li><a href="/pro/login">Espace professionnel·le</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="Informations légales">
+          <h2>Légal</h2>
+          <ul>
+            <li><a href="/legal/mentions">Mentions légales</a></li>
+            <li><a href="/legal/cgu">CGU</a></li>
+            <li><a href="/legal/cgv">CGV</a></li>
+            <li><a href="/legal/dpa">Contrat de sous-traitance</a></li>
+            <li><a href="/legal/confidentialite">Confidentialité</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="os-footer__legal">
+        <span>© {year} Opensex · Plateforme réservée aux adultes (18+)</span>
+        <span>Établissements agréés au sens de la loi du 3 mai 2024</span>
+      </div>
+    </div>
+  </footer>
+  <AgeGate />
+</Base>

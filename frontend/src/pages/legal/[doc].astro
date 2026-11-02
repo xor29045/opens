@@ -1,0 +1,22 @@
+---
+import Public from '../../layouts/Public.astro';
+// Legal texts are drafts until the Belgian lawyer's opinion (T0.1) is in.
+const docs: Record<string, string> = {
+  mentions: 'Mentions légales',
+  cgu: 'Conditions générales d’utilisation',
+  cgv: 'Conditions générales de vente',
+  dpa: 'Contrat de sous-traitance (DPA)',
+  confidentialite: 'Politique de confidentialité',
+};
+const title = docs[Astro.params.doc ?? ''];
+if (!title) return new Response(null, { status: 404 });
+---
+<Public title={title} description={title}>
+  <article class="os-prose">
+    <span class="os-eyebrow">Informations légales</span>
+    <h1 class="os-title os-title--lg">{title}</h1>
+    <p class="os-notice">
+      <strong>Version provisoire</strong> — ce texte doit être validé par un avocat belge (T0.1) avant la mise en production.
+    </p>
+  </article>
+</Public>

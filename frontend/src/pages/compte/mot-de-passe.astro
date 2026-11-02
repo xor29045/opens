@@ -1,0 +1,7 @@
+---
+import Private from '../../layouts/Private.astro';
+import { ChangePassword } from '../../features/auth/PasswordForms.tsx';
+---
+<Private title="Mot de passe">
+  <ChangePassword client:only="react" />
+</Private>
