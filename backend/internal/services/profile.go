@@ -55,10 +55,6 @@ func (s *ProfileService) resolve(ctx context.Context, actor *rbac.Actor, id uuid
 		} else {
 			p, err = s.Repos.Profiles.ScopedByID(ctx, actor.EstablishmentID, id)
 		}
-		if database.IsNotFound(err) && s.Repos.Profiles.ExistsAnywhere(ctx, id) {
-			s.Audit.Record(ctx, AuditEvent{Action: "security.idor_attempt", Category: models.AuditSecurity, Severity: models.SeverityWarn,
-				TargetType: "profile", TargetID: id.String()})
-		}
 	default:
 		return nil, apperr.NotFound("profile")
 	}
@@ -352,7 +348,6 @@ func (s *ProfileService) CreateByManager(ctx context.Context, actor *rbac.Actor,
 		if err := s.Repos.Profiles.Update(ctx, p.ID, cols); err != nil {
 			return apperr.Internal(err)
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "profile.created", Category: models.AuditProfile, TargetType: "profile", TargetID: p.ID.String()})
 		p, err = s.Repos.Profiles.ByID(ctx, p.ID)
 		if err != nil {
 			return apperr.Internal(err)
@@ -384,7 +379,6 @@ func (s *ProfileService) Update(ctx context.Context, actor *rbac.Actor, id uuid.
 		if err := s.Repos.Profiles.Update(ctx, p.ID, cols); err != nil {
 			return apperr.Internal(err)
 		}
-		s.audit(ctx, "profile.updated", p, nil)
 		if p, err = s.Repos.Profiles.ByID(ctx, p.ID); err != nil {
 			return apperr.Internal(err)
 		}
@@ -392,14 +386,6 @@ func (s *ProfileService) Update(ctx context.Context, actor *rbac.Actor, id uuid.
 		return err
 	})
 	return out, err
-}
-
-func (s *ProfileService) audit(ctx context.Context, action string, p *models.Profile, meta map[string]any) {
-	if meta == nil {
-		meta = map[string]any{}
-	}
-	meta["establishment_id"] = p.EstablishmentID.String()
-	s.Audit.Record(ctx, AuditEvent{Action: action, Category: models.AuditProfile, TargetType: "profile", TargetID: p.ID.String(), Metadata: meta})
 }
 
 // touch marks the profile as edited by the actor.
@@ -438,7 +424,6 @@ func (s *ProfileService) ReplaceCategories(ctx context.Context, actor *rbac.Acto
 		if err := s.touch(ctx, actor, p, nil); err != nil {
 			return err
 		}
-		s.audit(ctx, "profile.categories.updated", p, map[string]any{"count": len(uniq)})
 		out, err = s.Repos.Profiles.Categories(ctx, p.ID)
 		return err
 	})
@@ -507,7 +492,6 @@ func (s *ProfileService) ReplaceRates(ctx context.Context, actor *rbac.Actor, id
 		if err := s.touch(ctx, actor, p, map[string]any{"price_from_cents": min}); err != nil {
 			return err
 		}
-		s.audit(ctx, "profile.rates.updated", p, map[string]any{"count": len(rows)})
 		out = rows
 		return nil
 	})
@@ -535,7 +519,6 @@ func (s *ProfileService) ReplaceContacts(ctx context.Context, actor *rbac.Actor,
 		if err := s.touch(ctx, actor, p, nil); err != nil {
 			return err
 		}
-		s.audit(ctx, "profile.contacts.updated", p, map[string]any{"count": len(rows)})
 		out = rows
 		return nil
 	})
@@ -566,7 +549,6 @@ func (s *ProfileService) UploadPhoto(ctx context.Context, actor *rbac.Actor, id 
 		case errors.Is(err, imageproc.ErrTooLarge):
 			code = "image_too_large"
 		}
-		s.audit(ctx, "profile.photo.rejected", p, map[string]any{"reason": code})
 		return nil, apperr.Invalid("file", code)
 	}
 	photo := &models.ProfilePhoto{ID: models.NewID(), ProfileID: p.ID, Width: img.Width, Height: img.Height, CreatedAt: s.now()}
@@ -594,7 +576,6 @@ func (s *ProfileService) UploadPhoto(ctx context.Context, actor *rbac.Actor, id 
 		if err := s.touch(ctx, actor, p, nil); err != nil {
 			return err
 		}
-		s.audit(ctx, "profile.photo.added", p, map[string]any{"photo_id": photo.ID.String()})
 		if photo.IsPrimary {
 			return s.Publication.Recompute(ctx, p.EstablishmentID)
 		}
@@ -641,7 +622,6 @@ func (s *ProfileService) UpdatePhoto(ctx context.Context, actor *rbac.Actor, id,
 		if err := s.touch(ctx, actor, p, nil); err != nil {
 			return err
 		}
-		s.audit(ctx, "profile.photo.updated", p, map[string]any{"photo_id": photoID.String()})
 		out, err = s.photoViews(ctx, p.ID)
 		return err
 	})
@@ -689,12 +669,12 @@ func (s *ProfileService) DeletePhoto(ctx context.Context, actor *rbac.Actor, id,
 	if err != nil {
 		return err
 	}
-	return s.removePhoto(ctx, p, photoID, func(ctx context.Context) error { return s.touch(ctx, actor, p, nil) }, "profile.photo.deleted", "")
+	return s.removePhoto(ctx, p, photoID, func(ctx context.Context) error { return s.touch(ctx, actor, p, nil) })
 }
 
 // removePhoto deletes a photo, promotes the next one as primary if needed,
 // recomputes the publication and removes the object from storage.
-func (s *ProfileService) removePhoto(ctx context.Context, p *models.Profile, photoID uuid.UUID, extra func(ctx context.Context) error, action, reason string) error {
+func (s *ProfileService) removePhoto(ctx context.Context, p *models.Profile, photoID uuid.UUID, extra func(ctx context.Context) error) error {
 	var key string
 	err := s.tx(ctx, func(ctx context.Context) error {
 		if _, err := s.Repos.Profiles.ScopedByIDForUpdate(ctx, p.EstablishmentID, p.ID); err != nil {
@@ -727,11 +707,6 @@ func (s *ProfileService) removePhoto(ctx context.Context, p *models.Profile, pho
 				return err
 			}
 		}
-		meta := map[string]any{"photo_id": photoID.String()}
-		if reason != "" {
-			meta["reason"] = reason
-		}
-		s.audit(ctx, action, p, meta)
 		return s.Publication.Recompute(ctx, p.EstablishmentID)
 	})
 	if err != nil {
@@ -799,7 +774,6 @@ func (s *ProfileService) Attest(ctx context.Context, actor *rbac.Actor, id uuid.
 		if err := s.Repos.Profiles.Update(ctx, p.ID, cols); err != nil {
 			return apperr.Internal(err)
 		}
-		s.audit(ctx, "profile.attested", p, map[string]any{"accepted_registration": accepted})
 		if err := s.Publication.Recompute(ctx, p.EstablishmentID); err != nil {
 			return err
 		}
@@ -837,7 +811,6 @@ func (s *ProfileService) RemoveAttestation(ctx context.Context, actor *rbac.Acto
 		if err := s.Repos.Profiles.Update(ctx, p.ID, clearAttestation(actor)); err != nil {
 			return apperr.Internal(err)
 		}
-		s.audit(ctx, "profile.attestation.removed", p, nil)
 		return s.Publication.Recompute(ctx, p.EstablishmentID)
 	})
 }
@@ -866,7 +839,6 @@ func (s *ProfileService) Activate(ctx context.Context, actor *rbac.Actor, id uui
 		if err := s.Repos.Profiles.Update(ctx, p.ID, map[string]any{"status": models.ProfileActive, "last_edited_by": actor.UserID}); err != nil {
 			return apperr.Internal(err)
 		}
-		s.audit(ctx, "profile.activated", p, nil)
 		if err := s.Publication.Recompute(ctx, p.EstablishmentID); err != nil {
 			return err
 		}
@@ -911,7 +883,6 @@ func (s *ProfileService) Archive(ctx context.Context, actor *rbac.Actor, id uuid
 				return err
 			}
 		}
-		s.audit(ctx, "profile.archived", p, map[string]any{"account_suspended": p.UserID != nil})
 		return s.Publication.Recompute(ctx, p.EstablishmentID)
 	})
 	if err == nil && linked != nil {
@@ -941,7 +912,6 @@ func (s *ProfileService) Delete(ctx context.Context, actor *rbac.Actor, id uuid.
 				return err
 			}
 		}
-		s.audit(ctx, "profile.deleted", p, nil)
 		return nil
 	})
 	if err == nil && linked != nil {

@@ -495,27 +495,3 @@ type Invoice struct {
 func NewInvoice(i models.Invoice) Invoice {
 	return Invoice{ID: i.ID, Number: i.Number, PaymentID: i.PaymentID, AmountCents: i.AmountCents, Currency: i.Currency, IssuedAt: i.IssuedAt}
 }
-
-// ---------------------------------------------------------------- audit
-
-type AuditLog struct {
-	ID          int64       `json:"id"`
-	OccurredAt  time.Time   `json:"occurred_at"`
-	ActorUserID *uuid.UUID  `json:"actor_user_id"`
-	ActorRole   *string     `json:"actor_role"`
-	Action      string      `json:"action"`
-	Category    string      `json:"category"`
-	Severity    string      `json:"severity"`
-	TargetType  *string     `json:"target_type"`
-	TargetID    *string     `json:"target_id"`
-	IPHash      *string     `json:"ip_hash"`
-	UserAgent   *string     `json:"user_agent"`
-	RequestID   *string     `json:"request_id"`
-	Metadata    models.JSON `json:"metadata"`
-}
-
-func NewAuditLog(l models.AuditLog) AuditLog {
-	return AuditLog{ID: l.ID, OccurredAt: l.OccurredAt, ActorUserID: l.ActorUserID, ActorRole: l.ActorRole, Action: l.Action,
-		Category: l.Category, Severity: l.Severity, TargetType: l.TargetType, TargetID: l.TargetID, IPHash: l.IPHash,
-		UserAgent: l.UserAgent, RequestID: l.RequestID, Metadata: l.Metadata}
-}

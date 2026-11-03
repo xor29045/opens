@@ -69,7 +69,7 @@ func testDB(t *testing.T) *database.DB {
 
 func resetDB(t *testing.T, db *database.DB) {
 	t.Helper()
-	err := db.Gorm.Exec(`TRUNCATE audit_logs, payment_provider_events, invoices, payments, subscriptions, favorites,
+	err := db.Gorm.Exec(`TRUNCATE payment_provider_events, invoices, payments, subscriptions, favorites,
 		professional_categories, profile_rates, profile_contacts, profile_photos, professional_profiles,
 		establishment_contacts, establishments, recovery_codes, refresh_tokens, user_roles, users CASCADE`).Error
 	if err != nil {
@@ -260,6 +260,13 @@ var seq int
 func uniq(prefix string) string {
 	seq++
 	return fmt.Sprintf("%s%d", prefix, seq)
+}
+
+// browse reads the catalogue as a freshly registered client (the catalogue
+// is reserved to signed-in users).
+func (e *env) browse(path string) *resp {
+	e.t.Helper()
+	return e.get(path, e.register("client", nil).Token)
 }
 
 func (e *env) register(kind string, extra map[string]any) account {

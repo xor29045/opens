@@ -374,7 +374,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Search published profiles */
+        /**
+         * Search published profiles
+         * @description Signed-in users only.
+         */
         get: operations["get_profiles"];
         put?: never;
         post?: never;
@@ -391,7 +394,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Published profile (contacts filtered by visibility, RM-40) */
+        /**
+         * Published profile (contacts filtered by visibility, RM-40)
+         * @description Signed-in users only.
+         */
         get: operations["get_profiles_slug"];
         put?: never;
         post?: never;
@@ -408,7 +414,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Public page of a verified establishment */
+        /**
+         * Public page of a verified establishment
+         * @description Signed-in users only.
+         */
         get: operations["get_establishments_slug"];
         put?: never;
         post?: never;
@@ -2142,26 +2151,6 @@ export interface components {
             /** Format: date-time */
             issued_at: string;
         };
-        AuditLog: {
-            /** Format: int64 */
-            id: number;
-            /** Format: date-time */
-            occurred_at: string;
-            /** Format: uuid */
-            actor_user_id: string | null;
-            actor_role: string | null;
-            action: string;
-            /** @enum {string} */
-            category: "SECURITY" | "ADMIN" | "BILLING" | "ESTABLISHMENT" | "PROFILE" | "AUTH";
-            /** @enum {string} */
-            severity: "INFO" | "WARN" | "CRITICAL";
-            target_type: string | null;
-            target_id: string | null;
-            ip_hash: string | null;
-            user_agent: string | null;
-            request_id: string | null;
-            metadata: Record<string, never>;
-        };
         Reason: {
             reason: string;
         };
@@ -2222,7 +2211,6 @@ export interface components {
             };
             mrr_cents: number;
             users_by_role_and_status: Record<string, never>;
-            security_events_24h: number;
             upcoming_due: {
                 /** Format: uuid */
                 subscription_id: string;
@@ -3006,6 +2994,7 @@ export interface operations {
                     "application/json": components["schemas"]["PageProfileCard"];
                 };
             };
+            401: components["responses"]["401"];
             422: components["responses"]["422"];
             429: components["responses"]["429"];
         };
@@ -3030,6 +3019,7 @@ export interface operations {
                     "application/json": components["schemas"]["PublicProfile"];
                 };
             };
+            401: components["responses"]["401"];
             404: components["responses"]["404"];
             429: components["responses"]["429"];
         };
@@ -3054,6 +3044,7 @@ export interface operations {
                     "application/json": components["schemas"]["PublicEstablishment"];
                 };
             };
+            401: components["responses"]["401"];
             404: components["responses"]["404"];
             429: components["responses"]["429"];
         };
@@ -4843,7 +4834,6 @@ export interface operations {
                         profiles?: components["schemas"]["AdminProfile"][];
                         subscription?: components["schemas"]["Subscription"] | null;
                         blocking_reasons?: string[];
-                        history?: components["schemas"]["AuditLog"][];
                     };
                 };
             };
@@ -5096,7 +5086,6 @@ export interface operations {
                     "application/json": {
                         user?: components["schemas"]["AdminUser"];
                         active_sessions?: number;
-                        history?: components["schemas"]["AuditLog"][];
                         establishment?: components["schemas"]["EstablishmentRef"];
                         profile?: components["schemas"]["AdminProfile"];
                     };
@@ -5588,121 +5577,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeleteResult"];
-                };
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    get_admin_audit_logs: {
-        parameters: {
-            query?: {
-                category?: string;
-                action?: string;
-                severity?: string;
-                actor_id?: string;
-                target_type?: string;
-                target_id?: string;
-                from?: string;
-                to?: string;
-                cursor?: string;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items?: components["schemas"]["AuditLog"][];
-                        next_cursor?: string | null;
-                    };
-                };
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    get_admin_audit_logs_export: {
-        parameters: {
-            query?: {
-                category?: string;
-                action?: string;
-                severity?: string;
-                actor_id?: string;
-                target_type?: string;
-                target_id?: string;
-                from?: string;
-                to?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description CSV */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/csv": string;
-                };
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    get_admin_security_events: {
-        parameters: {
-            query?: {
-                category?: string;
-                action?: string;
-                severity?: string;
-                actor_id?: string;
-                target_type?: string;
-                target_id?: string;
-                from?: string;
-                to?: string;
-                cursor?: string;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items?: components["schemas"]["AuditLog"][];
-                        next_cursor?: string | null;
-                    };
                 };
             };
             400: components["responses"]["400"];

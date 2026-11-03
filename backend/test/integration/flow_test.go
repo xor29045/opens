@@ -34,7 +34,7 @@ func TestPublicationFlow(t *testing.T) {
 	if !st["publication"].(map[string]any)["published"].(bool) {
 		t.Fatalf("expected publication, reasons=%v", st["publication"])
 	}
-	list := e.get("/api/v1/profiles", "").expect(http.StatusOK).JSON()
+	list := e.browse("/api/v1/profiles").expect(http.StatusOK).JSON()
 	if list["total"].(float64) != 1 {
 		t.Fatalf("catalog total %v", list["total"])
 	}
@@ -43,7 +43,7 @@ func TestPublicationFlow(t *testing.T) {
 		t.Fatalf("card incomplete: %v", card)
 	}
 	profSlug := card["slug"].(string)
-	detail := e.get("/api/v1/profiles/"+profSlug, "").expect(http.StatusOK).JSON()
+	detail := e.browse("/api/v1/profiles/" + profSlug).expect(http.StatusOK).JSON()
 	est := detail["establishment"].(map[string]any)
 	if _, ok := est["approval_number"]; ok {
 		t.Fatal("approval number must no longer be exposed")
@@ -51,16 +51,16 @@ func TestPublicationFlow(t *testing.T) {
 	if _, ok := detail["birth_date"]; ok {
 		t.Fatal("birth date exposed")
 	}
-	e.get("/api/v1/establishments/"+slug, "").expect(http.StatusOK)
+	e.browse("/api/v1/establishments/" + slug).expect(http.StatusOK)
 	// Filters
-	if e.get("/api/v1/profiles?city=ixelles&age_min=25&price_max=200", "").expect(200).JSON()["total"].(float64) != 1 {
+	if e.browse("/api/v1/profiles?city=ixelles&age_min=25&price_max=200").expect(200).JSON()["total"].(float64) != 1 {
 		t.Fatal("filters should match")
 	}
-	if e.get("/api/v1/profiles?city=anvers", "").expect(200).JSON()["total"].(float64) != 0 {
+	if e.browse("/api/v1/profiles?city=anvers").expect(200).JSON()["total"].(float64) != 0 {
 		t.Fatal("city filter")
 	}
-	e.get("/api/v1/profiles?age_min=12", "").expect(http.StatusUnprocessableEntity)
-	e.get("/api/v1/profiles?sort=price%3BDROP", "").expect(http.StatusUnprocessableEntity)
+	e.browse("/api/v1/profiles?age_min=12").expect(http.StatusUnprocessableEntity)
+	e.browse("/api/v1/profiles?sort=price%3BDROP").expect(http.StatusUnprocessableEntity)
 
 	// Invoice issued
 	inv := e.get("/api/v1/billing/invoices", m.Token).expect(200).JSON()

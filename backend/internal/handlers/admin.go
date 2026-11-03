@@ -60,7 +60,6 @@ func (h *Handler) AdminEstablishment(c *gin.Context) {
 		"profiles":         dto.MapSlice(d.Profiles, dto.NewAdminProfile),
 		"subscription":     dto.NewSubscription(d.Subscription),
 		"blocking_reasons": d.Reasons,
-		"history":          dto.MapSlice(d.History, dto.NewAuditLog),
 	})
 }
 
@@ -159,7 +158,7 @@ func (h *Handler) AdminUser(c *gin.Context) {
 		fail(c, err)
 		return
 	}
-	out := gin.H{"user": dto.NewAdminUser(*d.User), "active_sessions": d.Sessions, "history": dto.MapSlice(d.History, dto.NewAuditLog)}
+	out := gin.H{"user": dto.NewAdminUser(*d.User), "active_sessions": d.Sessions}
 	if d.Establishment != nil {
 		out["establishment"] = dto.EstablishmentRef{ID: d.Establishment.ID, Slug: d.Establishment.Slug, DisplayName: d.Establishment.DisplayName}
 	}

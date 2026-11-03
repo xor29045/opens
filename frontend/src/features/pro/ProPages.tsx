@@ -5,7 +5,7 @@ import { Section, StatusBadge } from '../../components/ui';
 import { QueryBlock } from '../dashboard/shared';
 import { api } from '../../lib/api/client';
 import { dateFr, reasonLabels } from '../../lib/format';
-import ProfileView from '../catalog/ProfileView';
+import { ProfileInner } from '../catalog/ProfileView';
 import type { components } from '../../lib/api/schema';
 
 type PublicationStatus = components['schemas']['PublicationStatus'];
@@ -47,7 +47,7 @@ function PreviewInner() {
       {q.data && (
         <Stack gap="4">
           <Text fontSize="sm" color="fg.muted">Aperçu tel que le public le verra. Les coordonnées « clients inscrits » ne s’affichent qu’aux clients connectés.</Text>
-          <ProfileView profile={q.data} />
+          <ProfileInner profile={q.data} />
         </Stack>
       )}
     </QueryBlock>

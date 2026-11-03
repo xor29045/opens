@@ -39,7 +39,6 @@ func (s *ClientService) DeleteAccount(ctx context.Context, actor *rbac.Actor, pw
 		if err := s.deleteAccount(ctx, u.ID); err != nil {
 			return err
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "account.deleted", Category: models.AuditAuth, TargetType: "user", TargetID: u.ID.String()})
 		return nil
 	})
 	if err == nil {
@@ -107,7 +106,6 @@ func (s *ClientService) Rename(ctx context.Context, actor *rbac.Actor, username 
 		}
 		return nil, apperr.Internal(err)
 	}
-	s.Audit.Record(ctx, AuditEvent{Action: "account.username_changed", Category: models.AuditAuth, TargetType: "user", TargetID: actor.UserID.String()})
 	return s.Me(ctx, actor)
 }
 

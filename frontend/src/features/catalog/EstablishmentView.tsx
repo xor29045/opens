@@ -1,6 +1,9 @@
+import { useQuery } from '@tanstack/react-query';
 import { Grid, Heading, Link, Stack, Text } from '@chakra-ui/react';
 import Providers from '../../components/Providers';
 import { Section, EmptyState } from '../../components/ui';
+import { QueryBlock } from '../dashboard/shared';
+import { api } from '../../lib/api/client';
 import ProfileCardView from './ProfileCardView';
 import { contactHref, contactLabels, type PublicEstablishment } from './types';
 
@@ -66,10 +69,22 @@ function EstablishmentInner({ est }: { est: PublicEstablishment }) {
   );
 }
 
-export default function EstablishmentView({ establishment }: { establishment: PublicEstablishment }) {
+function EstablishmentLoader({ slug }: { slug: string }) {
+  const q = useQuery({
+    queryKey: ['catalog', 'establishment', slug],
+    queryFn: ({ signal }) => api<PublicEstablishment>(`/establishments/${encodeURIComponent(slug)}`, { signal }),
+  });
+  return (
+    <QueryBlock isPending={q.isPending} isError={q.isError} error={q.error} onRetry={() => q.refetch()}>
+      {q.data && <EstablishmentInner est={q.data} />}
+    </QueryBlock>
+  );
+}
+
+export default function EstablishmentView({ slug }: { slug: string }) {
   return (
     <Providers>
-      <EstablishmentInner est={establishment} />
+      <EstablishmentLoader slug={slug} />
     </Providers>
   );
 }

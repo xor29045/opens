@@ -52,17 +52,12 @@ func TestRBACCoverage(t *testing.T) {
 	}
 }
 
-// Scenario 5: a "role" field is ignored and recorded as a security event.
+// Scenario 5: a "role" field is ignored.
 func TestRoleFieldIgnored(t *testing.T) {
 	e := newEnv(t)
 	r := e.post("/api/v1/auth/register/client", "", map[string]any{"username": "sneaky", "password": pwd, "accept_terms": true, "role": "ADMIN"}).expect(http.StatusCreated)
 	if role := r.JSON()["user"].(map[string]any)["role"]; role != models.RoleClient {
 		t.Fatalf("role = %v", role)
-	}
-	var n int64
-	e.db.Gorm.Raw(`SELECT count(*) FROM audit_logs WHERE action = 'security.role_field_ignored'`).Scan(&n)
-	if n != 1 {
-		t.Fatalf("security event count %d", n)
 	}
 	// Unknown fields are rejected.
 	e.post("/api/v1/auth/register/client", "", map[string]any{"username": "x12", "password": pwd, "accept_terms": true, "is_admin": true}).
@@ -112,11 +107,6 @@ func TestCrossEstablishmentIDOR(t *testing.T) {
 	d := e.get(base, b.Token).expect(200).JSON()
 	if d["display_name"] != "Lola" || !d["publication"].(map[string]any)["published"].(bool) {
 		t.Fatal("profile of B was modified")
-	}
-	var n int64
-	e.db.Gorm.Raw(`SELECT count(*) FROM audit_logs WHERE action = 'security.idor_attempt'`).Scan(&n)
-	if n == 0 {
-		t.Fatal("IDOR attempts should be recorded")
 	}
 }
 

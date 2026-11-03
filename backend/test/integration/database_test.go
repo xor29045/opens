@@ -9,8 +9,8 @@ import (
 	"opensex/backend/internal/database"
 )
 
-// T5.1: the application role cannot modify the audit trail.
-func TestAppRoleCannotModifyAudit(t *testing.T) {
+// T5.1: the application role cannot alter the migration history.
+func TestAppRoleCannotModifyMigrations(t *testing.T) {
 	e := newEnv(t)
 	raw := os.Getenv("TEST_DATABASE_URL")
 	e.db.Gorm.Exec(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_rw') THEN CREATE ROLE app_rw LOGIN PASSWORD 'app_rw_test'; END IF; END $$`)
@@ -27,10 +27,7 @@ func TestAppRoleCannotModifyAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rw.Close()
-	if err := rw.Gorm.Exec(`INSERT INTO audit_logs (action, category, severity) VALUES ('test', 'ADMIN', 'INFO')`).Error; err != nil {
-		t.Fatalf("insert should be allowed: %v", err)
-	}
-	for _, q := range []string{`UPDATE audit_logs SET action = 'x'`, `DELETE FROM audit_logs`, `TRUNCATE audit_logs`} {
+	for _, q := range []string{`UPDATE schema_migrations SET dirty = false`, `DELETE FROM schema_migrations`, `TRUNCATE schema_migrations`} {
 		err := rw.Gorm.Exec(q).Error
 		if err == nil || !strings.Contains(err.Error(), "permission denied") {
 			t.Errorf("%s: expected permission denied, got %v", q, err)

@@ -18,7 +18,6 @@ import (
 	"opensex/backend/internal/apperr"
 	"opensex/backend/internal/config"
 	"opensex/backend/internal/middlewares"
-	"opensex/backend/internal/models"
 	"opensex/backend/internal/rbac"
 	"opensex/backend/internal/repositories"
 	"opensex/backend/internal/services"
@@ -60,8 +59,6 @@ func (h *Handler) bind(c *gin.Context, dst any) bool {
 	if _, ok := probe["role"]; ok {
 		delete(probe, "role")
 		body, _ = json.Marshal(probe)
-		h.Svc.Audit.Record(c.Request.Context(), services.AuditEvent{Action: "security.role_field_ignored", Category: models.AuditSecurity,
-			Severity: models.SeverityWarn, Metadata: map[string]any{"path": c.FullPath()}})
 	}
 	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()

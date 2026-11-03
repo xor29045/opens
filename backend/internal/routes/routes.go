@@ -170,11 +170,15 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	self(nonAdmin, false, "/recovery-codes/status", http.MethodGet, h.RecoveryCodesStatus)
 	self(nonAdmin, false, "/recovery-codes/regenerate", http.MethodPost, rl.ByUser("sensitive", ratelimit.PerHour(5)), h.RegenerateRecoveryCodes)
 
-	// ---- public catalogue
+	// ---- catalogue: profiles and establishments are visible to signed-in users only
+	catG := api.Group("", auth.RequireAuth(), middlewares.RequireRole(anyUser.Roles...), middlewares.RequirePasswordChanged(),
+		rl.ByUser("catalog", ratelimit.PerMinute(120)))
+	r.handle(catG, RouteSpec{Method: http.MethodGet, Path: "/profiles", Access: anyUser}, h.SearchProfiles)
+	r.handle(catG, RouteSpec{Method: http.MethodGet, Path: "/profiles/:slug", Access: anyUser}, h.PublicProfile)
+	r.handle(catG, RouteSpec{Method: http.MethodGet, Path: "/establishments/:slug", Access: anyUser}, h.PublicEstablishment)
+
+	// ---- public reference data
 	pubG := api.Group("", publicRL, auth.OptionalAuth())
-	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/profiles", Access: pub}, h.SearchProfiles)
-	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/profiles/:slug", Access: pub}, h.PublicProfile)
-	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/establishments/:slug", Access: pub}, h.PublicEstablishment)
 	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/regions", Access: pub}, h.Regions)
 	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/categories", Access: pub}, h.Categories)
 	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/attributes", Access: pub}, h.Attributes)

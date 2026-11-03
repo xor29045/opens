@@ -33,7 +33,7 @@ function FavoritesInner() {
     <Section title="Mes favoris">
       <QueryBlock isPending={q.isPending} isError={q.isError} error={q.error} onRetry={() => q.refetch()}>
         {q.data && (q.data.items.length === 0 ? (
-          <EmptyState title="Aucun favori">Ajoute des profils depuis le <a href="/profils">catalogue</a>.</EmptyState>
+          <EmptyState title="Aucun favori">Ajoute des profils depuis <a href="/client/espace/decouvrir">Découvrir</a>.</EmptyState>
         ) : (
           <>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap="3">

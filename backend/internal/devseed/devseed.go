@@ -2,7 +2,7 @@
 // that every dashboard (public catalogue, manager, professional, client,
 // admin) has something to show. Everything goes through the business
 // services: passwords are hashed, photos re-encoded and stored, payments are
-// confirmed by signed IPNs of the fake provider, and the audit trail is fed.
+// confirmed by signed IPNs of the fake provider.
 //
 // It refuses to run outside development and without the fake payment provider.
 package devseed
@@ -442,7 +442,6 @@ func (sd *seeder) clients(ctx context.Context, published []uuid.UUID) error {
 
 // moderation adds a few admin actions (hidden profile, suspended client).
 func (sd *seeder) moderation(ctx context.Context, published []uuid.UUID) error {
-	// System actions: no actor in the context, so the audit has no author.
 	s := sd.s
 	if len(published) > 3 {
 		if err := s.Admin.HideProfile(ctx, published[3], true, "Photo non conforme — en attente d’une nouvelle photo"); err != nil {

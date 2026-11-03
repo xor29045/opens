@@ -1,5 +1,5 @@
 // Package services implements the business rules (RM-xx), ownership checks,
-// transactions and audit. Services receive context.Context (carrying the
+// transactions and alerts. Services receive context.Context (carrying the
 // Actor and request metadata) and never depend on Gin.
 package services
 
@@ -42,7 +42,7 @@ type Deps struct {
 // a pointer to it to reach the dependencies and its sibling services.
 type Services struct {
 	Deps
-	Audit          *AuditService
+	Alert          *AlertService
 	Denylist       *Denylist
 	Auth           *AuthService
 	Bootstrap      *BootstrapService
@@ -65,7 +65,7 @@ func New(d Deps) *Services {
 	if s.Logger == nil {
 		s.Logger = slog.Default()
 	}
-	s.Audit = &AuditService{s}
+	s.Alert = &AlertService{s}
 	s.Denylist = &Denylist{rdb: d.Redis, ttl: maxDur(d.Cfg.AccessTTL, d.Cfg.AdminAccessTTL) + time.Minute}
 	s.Auth = &AuthService{s}
 	s.Bootstrap = &BootstrapService{s}

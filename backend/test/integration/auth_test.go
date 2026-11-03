@@ -37,11 +37,6 @@ func TestRefreshScenarios(t *testing.T) {
 	e.clock.Advance(time.Minute)
 	e.refresh(c2).expect(http.StatusUnauthorized)
 	e.refresh(c3).expect(http.StatusUnauthorized)
-	var n int64
-	e.db.Gorm.Raw(`SELECT count(*) FROM audit_logs WHERE action = 'auth.refresh.reuse_detected' AND severity = 'CRITICAL'`).Scan(&n)
-	if n != 1 {
-		t.Fatal("reuse must be audited as CRITICAL")
-	}
 	// The access token of the revoked family is denied.
 	e.get("/api/v1/auth/me", r2.JSON()["access_token"].(string)).expect(http.StatusUnauthorized)
 
@@ -93,18 +88,18 @@ func TestRevocationByAdmin(t *testing.T) {
 	e.post("/api/v1/admin/users/"+p.ID+"/password-reset", adm.Token, map[string]any{"reason": "x"}).expect(http.StatusForbidden)
 
 	// Suspending the manager unpublishes everything and cuts the professionals (RM-63).
-	if e.get("/api/v1/profiles", "").JSON()["total"].(float64) != 1 {
+	if e.browse("/api/v1/profiles").JSON()["total"].(float64) != 1 {
 		t.Fatal("profile should be published")
 	}
 	e.post("/api/v1/admin/users/"+m.ID+"/suspend", adm.Token, map[string]any{"reason": "contrôle"}).expect(204)
 	e.get("/api/v1/manager/establishment", tok).expect(http.StatusUnauthorized)
 	e.get("/api/v1/professional/me", p.Token).expect(http.StatusUnauthorized)
 	e.refresh(p.Cookie).expect(http.StatusUnauthorized)
-	if e.get("/api/v1/profiles", "").JSON()["total"].(float64) != 0 {
+	if e.browse("/api/v1/profiles").JSON()["total"].(float64) != 0 {
 		t.Fatal("profiles must be unpublished")
 	}
 	e.post("/api/v1/admin/users/"+m.ID+"/restore", adm.Token, map[string]any{}).expect(204)
-	if e.get("/api/v1/profiles", "").JSON()["total"].(float64) != 1 {
+	if e.browse("/api/v1/profiles").JSON()["total"].(float64) != 1 {
 		t.Fatal("profiles must be republished after restore")
 	}
 	pl := e.login(p.Username, p.Password).expect(200)

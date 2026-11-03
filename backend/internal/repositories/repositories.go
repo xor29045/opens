@@ -23,7 +23,6 @@ type Repos struct {
 	Taxonomy       *TaxonomyRepo
 	Favorites      *FavoriteRepo
 	Billing        *BillingRepo
-	Audit          *AuditRepo
 	Catalog        *CatalogRepo
 }
 
@@ -37,7 +36,6 @@ func New(db *database.DB) *Repos {
 		Taxonomy:       &TaxonomyRepo{b},
 		Favorites:      &FavoriteRepo{b},
 		Billing:        &BillingRepo{b},
-		Audit:          &AuditRepo{b},
 		Catalog:        &CatalogRepo{b},
 	}
 }

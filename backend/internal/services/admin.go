@@ -14,15 +14,10 @@ import (
 	"opensex/backend/internal/validators"
 )
 
-// AdminService implements the platform administration (§11.7). Every action
-// is audited; a reason is mandatory for suspensions, deletions, hiding,
+// AdminService implements the platform administration (§11.7). A reason is
+// mandatory for suspensions, deletions, hiding,
 // rejections and password resets (RM-60). No action targets an ADMIN (RM-62).
 type AdminService struct{ *Services }
-
-func (s *AdminService) adminAudit(ctx context.Context, action, targetType, targetID string, meta map[string]any) {
-	s.Audit.Record(ctx, AuditEvent{Action: action, Category: models.AuditAdmin, Severity: models.SeverityWarn,
-		TargetType: targetType, TargetID: targetID, Metadata: meta})
-}
 
 // ---------------------------------------------------------------- stats
 
@@ -39,7 +34,6 @@ type AdminStats struct {
 	SubscriptionsByStatus map[string]int64            `json:"subscriptions_by_status"`
 	MRRCents              int64                       `json:"mrr_cents"`
 	UsersByRole           map[string]map[string]int64 `json:"users_by_role_and_status"`
-	SecurityEvents24h     int64                       `json:"security_events_24h"`
 	UpcomingDue           []DueSubscription           `json:"upcoming_due"`
 }
 
@@ -62,9 +56,6 @@ func (s *AdminService) KPIs(ctx context.Context) (*AdminStats, error) {
 		return nil, apperr.Internal(err)
 	}
 	now := s.now()
-	if out.SecurityEvents24h, err = s.Repos.Audit.CountSince(ctx, models.AuditSecurity, now.Add(-24*time.Hour)); err != nil {
-		return nil, apperr.Internal(err)
-	}
 	due, err := s.Repos.Billing.SubscriptionsEndingBefore(ctx, []string{models.SubActive, models.SubTrialing, models.SubPastDue}, now.Add(7*24*time.Hour))
 	if err != nil {
 		return nil, apperr.Internal(err)
@@ -96,7 +87,6 @@ type AdminEstablishmentDetail struct {
 	Manager      *models.User
 	Profiles     []models.Profile
 	Subscription *models.Subscription
-	History      []models.AuditLog
 	Reasons      []string
 }
 
@@ -120,9 +110,6 @@ func (s *AdminService) Establishment(ctx context.Context, id uuid.UUID) (*AdminE
 	if sub, err := s.Repos.Billing.LatestSubscription(ctx, e.ID); err == nil {
 		out.Subscription = sub
 	}
-	if out.History, err = s.Repos.Audit.List(ctx, repositories.AuditFilter{TargetType: "establishment", TargetID: e.ID.String()}, 50); err != nil {
-		return nil, apperr.Internal(err)
-	}
 	st, err := s.Publication.EstablishmentState(ctx, e)
 	if err != nil {
 		return nil, err
@@ -131,7 +118,7 @@ func (s *AdminService) Establishment(ctx context.Context, id uuid.UUID) (*AdminE
 	return out, nil
 }
 
-func (s *AdminService) mutateEstablishment(ctx context.Context, id uuid.UUID, fn func(e *models.Establishment) (map[string]any, string, map[string]any, error)) error {
+func (s *AdminService) mutateEstablishment(ctx context.Context, id uuid.UUID, fn func(e *models.Establishment) (map[string]any, error)) error {
 	return s.tx(ctx, func(ctx context.Context) error {
 		e, err := s.Repos.Establishments.ByIDForUpdate(ctx, id)
 		if err != nil {
@@ -140,14 +127,13 @@ func (s *AdminService) mutateEstablishment(ctx context.Context, id uuid.UUID, fn
 			}
 			return apperr.Internal(err)
 		}
-		cols, action, meta, err := fn(e)
+		cols, err := fn(e)
 		if err != nil {
 			return err
 		}
 		if err := s.Repos.Establishments.Update(ctx, e.ID, cols); err != nil {
 			return apperr.Internal(err)
 		}
-		s.adminAudit(ctx, action, "establishment", e.ID.String(), meta)
 		return s.Publication.Recompute(ctx, e.ID)
 	})
 }
@@ -159,11 +145,11 @@ func (s *AdminService) HideEstablishment(ctx context.Context, id uuid.UUID, hide
 			return err
 		}
 	}
-	return s.mutateEstablishment(ctx, id, func(e *models.Establishment) (map[string]any, string, map[string]any, error) {
+	return s.mutateEstablishment(ctx, id, func(e *models.Establishment) (map[string]any, error) {
 		if hide {
-			return map[string]any{"is_hidden": true, "hidden_reason": reason}, "admin.establishment.hidden", map[string]any{"reason": reason}, nil
+			return map[string]any{"is_hidden": true, "hidden_reason": reason}, nil
 		}
-		return map[string]any{"is_hidden": false, "hidden_reason": nil}, "admin.establishment.unhidden", nil, nil
+		return map[string]any{"is_hidden": false, "hidden_reason": nil}, nil
 	})
 }
 
@@ -200,22 +186,18 @@ func (s *AdminService) HideProfile(ctx context.Context, id uuid.UUID, hide bool,
 			return apperr.Internal(err)
 		}
 		cols := map[string]any{"is_hidden": false, "hidden_reason": nil}
-		action := "admin.profile.unhidden"
 		if hide {
 			cols = map[string]any{"is_hidden": true, "hidden_reason": reason}
-			action = "admin.profile.hidden"
 		}
 		if err := s.Repos.Profiles.Update(ctx, p.ID, cols); err != nil {
 			return apperr.Internal(err)
 		}
-		s.adminAudit(ctx, action, "profile", p.ID.String(), map[string]any{"reason": reason, "establishment_id": p.EstablishmentID.String()})
 		return s.Publication.Recompute(ctx, p.EstablishmentID)
 	})
 }
 
 func (s *AdminService) RemovePhoto(ctx context.Context, profileID, photoID uuid.UUID, reason string) error {
-	reason, err := reasonRequired(reason)
-	if err != nil {
+	if _, err := reasonRequired(reason); err != nil {
 		return err
 	}
 	p, err := s.Repos.Profiles.ByID(ctx, profileID)
@@ -225,7 +207,7 @@ func (s *AdminService) RemovePhoto(ctx context.Context, profileID, photoID uuid.
 		}
 		return apperr.Internal(err)
 	}
-	return s.Profiles.removePhoto(ctx, p, photoID, nil, "admin.profile.photo_removed", reason)
+	return s.Profiles.removePhoto(ctx, p, photoID, nil)
 }
 
 // ---------------------------------------------------------------- users
@@ -243,7 +225,6 @@ type AdminUserDetail struct {
 	Establishment *models.Establishment
 	Profile       *models.Profile
 	Sessions      int
-	History       []models.AuditLog
 }
 
 func (s *AdminService) User(ctx context.Context, id uuid.UUID) (*AdminUserDetail, error) {
@@ -261,7 +242,6 @@ func (s *AdminService) User(ctx context.Context, id uuid.UUID) (*AdminUserDetail
 	if sess, err := s.Repos.Tokens.ActiveSessions(ctx, u.ID, s.now()); err == nil {
 		out.Sessions = len(sess)
 	}
-	out.History, _ = s.Repos.Audit.List(ctx, repositories.AuditFilter{TargetType: "user", TargetID: u.ID.String()}, 50)
 	return out, nil
 }
 
@@ -282,7 +262,6 @@ func (s *AdminService) nonAdminTarget(ctx context.Context, id uuid.UUID) (*model
 		return nil, err
 	}
 	if u.Role == models.RoleAdmin {
-		s.Audit.Security(ctx, "admin.action_on_admin_refused", models.SeverityCritical, map[string]any{"target_id": id.String()})
 		return nil, apperr.Forbidden("target_is_admin", "actions on administrator accounts are not allowed")
 	}
 	return u, nil
@@ -347,7 +326,6 @@ func (s *AdminService) Suspend(ctx context.Context, id uuid.UUID, reason string)
 				estID = &p.EstablishmentID
 			}
 		}
-		s.adminAudit(ctx, "admin.user.suspended", "user", u.ID.String(), map[string]any{"reason": reason, "role": u.Role, "staff_revoked": len(staff)})
 		if estID != nil {
 			return s.Publication.Recompute(ctx, *estID)
 		}
@@ -376,7 +354,6 @@ func (s *AdminService) Restore(ctx context.Context, id uuid.UUID) error {
 		if err := s.Repos.Users.Update(ctx, u.ID, map[string]any{"status": models.UserActive, "status_reason": nil}); err != nil {
 			return apperr.Internal(err)
 		}
-		s.adminAudit(ctx, "admin.user.restored", "user", u.ID.String(), map[string]any{"role": u.Role})
 		var estID *uuid.UUID
 		if u.Role == models.RoleManager {
 			e, ids, err := s.establishmentStaff(ctx, u.ID)
@@ -467,7 +444,6 @@ func (s *AdminService) Delete(ctx context.Context, id uuid.UUID, reason string) 
 			return err
 		}
 		denied = append(denied, u.ID)
-		s.adminAudit(ctx, "admin.user.deleted", "user", u.ID.String(), map[string]any{"reason": reason, "role": u.Role})
 		return nil
 	})
 	if err != nil {
@@ -560,7 +536,6 @@ func (s *AdminService) CreateCategory(ctx context.Context, in CategoryInput) (*m
 		}
 		return nil, apperr.Internal(err)
 	}
-	s.adminAudit(ctx, "admin.category.created", "category", c.ID.String(), map[string]any{"slug": c.Slug})
 	return c, nil
 }
 
@@ -579,7 +554,6 @@ func (s *AdminService) UpdateCategory(ctx context.Context, id uuid.UUID, in Cate
 		}
 		return nil, apperr.Internal(err)
 	}
-	s.adminAudit(ctx, "admin.category.updated", "category", c.ID.String(), nil)
 	return c, nil
 }
 
@@ -598,13 +572,11 @@ func (s *AdminService) DeleteCategory(ctx context.Context, id uuid.UUID) (deacti
 		if err := s.Repos.Taxonomy.SaveCategory(ctx, c); err != nil {
 			return false, apperr.Internal(err)
 		}
-		s.adminAudit(ctx, "admin.category.deactivated", "category", id.String(), nil)
 		return true, nil
 	}
 	if err := s.Repos.Taxonomy.DeleteCategory(ctx, id); err != nil {
 		return false, apperr.Internal(err)
 	}
-	s.adminAudit(ctx, "admin.category.deleted", "category", id.String(), nil)
 	return false, nil
 }
 
@@ -654,7 +626,6 @@ func (s *AdminService) CreateRegion(ctx context.Context, in RegionInput) (*model
 		}
 		return nil, apperr.Internal(err)
 	}
-	s.adminAudit(ctx, "admin.region.created", "region", r.ID.String(), map[string]any{"slug": r.Slug})
 	return r, nil
 }
 
@@ -676,7 +647,6 @@ func (s *AdminService) UpdateRegion(ctx context.Context, id uuid.UUID, in Region
 		}
 		return nil, apperr.Internal(err)
 	}
-	s.adminAudit(ctx, "admin.region.updated", "region", r.ID.String(), nil)
 	return r, nil
 }
 
@@ -694,37 +664,10 @@ func (s *AdminService) DeleteRegion(ctx context.Context, id uuid.UUID) (bool, er
 		if err := s.Repos.Taxonomy.SaveRegion(ctx, r); err != nil {
 			return false, apperr.Internal(err)
 		}
-		s.adminAudit(ctx, "admin.region.deactivated", "region", id.String(), nil)
 		return true, nil
 	}
 	if err := s.Repos.Taxonomy.DeleteRegion(ctx, id); err != nil {
 		return false, apperr.Internal(err)
 	}
-	s.adminAudit(ctx, "admin.region.deleted", "region", id.String(), nil)
 	return false, nil
-}
-
-// ---------------------------------------------------------------- audit
-
-func (s *AdminService) AuditLogs(ctx context.Context, f repositories.AuditFilter, limit int) ([]models.AuditLog, error) {
-	if limit < 1 || limit > 200 {
-		limit = 100
-	}
-	rows, err := s.Repos.Audit.List(ctx, f, limit)
-	if err != nil {
-		return nil, apperr.Internal(err)
-	}
-	return rows, nil
-}
-
-const maxExportRows = 10000
-
-// ExportAudit returns up to 10 000 entries; the export itself is audited.
-func (s *AdminService) ExportAudit(ctx context.Context, f repositories.AuditFilter) ([]models.AuditLog, error) {
-	rows, err := s.Repos.Audit.List(ctx, f, maxExportRows)
-	if err != nil {
-		return nil, apperr.Internal(err)
-	}
-	s.adminAudit(ctx, "admin.audit.exported", "audit_logs", "", map[string]any{"rows": len(rows), "category": f.Category})
-	return rows, nil
 }

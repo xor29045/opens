@@ -1,23 +1,8 @@
 ---
 import Public from '../layouts/Public.astro';
-import ProfileCard from '../components/ProfileCard.astro';
-import { ssrGet } from '../lib/ssr';
-import type { components } from '../lib/api/schema';
 
-type Card = components['schemas']['ProfileCard'];
-type Region = components['schemas']['Region'];
-type Page<T> = { items: T[]; total: number };
-
-const [latest, regions] = await Promise.all([
-  ssrGet<Page<Card>>('/profiles?page_size=8&sort=recent'),
-  ssrGet<{ items: Region[] }>('/regions'),
-]);
-const cards = latest?.items ?? [];
-const total = latest?.total ?? 0;
-const allRegions = regions?.items ?? [];
-const regionList = allRegions.filter((r) => r.kind === 'REGION');
-const cities = allRegions.filter((r) => r.kind === 'CITY');
-const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
+// The profiles are reserved to signed-in users: the home page shows none.
+const discover = '/client/espace/decouvrir';
 ---
 <Public
   title="Professionnel·les et maisons près de chez toi"
@@ -43,34 +28,22 @@ const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
           Parcours les profils des professionnel·les des maisons présentes sur la plateforme.
           Chaque profil est attesté majeur par sa maison. Tes recherches restent discrètes.
         </p>
-        <form class="os-search" action="/profils" method="get" role="search" aria-label="Rechercher par ville">
-          <label for="hero-city" class="visually-hidden">Ville</label>
-          <select id="hero-city" name="city">
-            <option value="">Toutes les villes</option>
-            {regionList.map((r) => (
-              <optgroup label={r.name}>
-                {cities.filter((c) => c.parent_id === r.id).map((c) => <option value={c.slug}>{c.name}</option>)}
-              </optgroup>
-            ))}
-          </select>
-          <button class="os-btn os-btn--primary" type="submit">Explorer</button>
-        </form>
+        <p class="os-lead">Les profils sont réservés aux membres : crée ton compte gratuit (un pseudo suffit) ou connecte-toi.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px;">
+          <a class="os-btn os-btn--primary" href="/client/register">Créer un compte</a>
+          <a class="os-btn os-btn--ghost" href={`/client/login?next=${encodeURIComponent(discover)}`}>Se connecter</a>
+        </div>
         <div class="os-stats">
-          <div class="os-stat"><strong>{total}</strong><span>profils publiés</span></div>
           <div class="os-stat"><strong>18+</strong><span>âge attesté par la maison</span></div>
           <div class="os-stat"><strong>0</strong><span>e-mail demandé</span></div>
         </div>
       </div>
       <div class="os-mosaic" aria-hidden="true">
-        {[0, 1, 2, 3].map((i) => (
+        {[0, 1, 2, 3].map(() => (
           <div class="os-mosaic__item">
-            {mosaic[i]?.photo_url ? (
-              <img src={mosaic[i].photo_url} alt="" loading="eager" decoding="async" />
-            ) : (
-              <div class="os-mosaic__placeholder">
-                <svg width="56" height="56" viewBox="0 0 64 64"><circle cx="32" cy="32" r="13" fill="none" stroke="currentColor" stroke-width="4" /></svg>
-              </div>
-            )}
+            <div class="os-mosaic__placeholder">
+              <svg width="56" height="56" viewBox="0 0 64 64"><circle cx="32" cy="32" r="13" fill="none" stroke="currentColor" stroke-width="4" /></svg>
+            </div>
           </div>
         ))}
       </div>

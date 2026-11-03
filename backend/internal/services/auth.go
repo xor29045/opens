@@ -163,8 +163,6 @@ func (s *AuthService) RegisterManager(ctx context.Context, in RegisterInput) (*A
 		if err := s.Repos.Establishments.Create(ctx, e); err != nil {
 			return apperr.Internal(err)
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "establishment.created", Category: models.AuditEstablishment,
-			TargetType: "establishment", TargetID: e.ID.String(), ActorID: ptr(u.ID.String()), ActorRole: models.RoleManager})
 		codes, err = s.issueRecoveryCodes(ctx, u.ID)
 		return err
 	})
@@ -247,9 +245,6 @@ func (s *AuthService) RegisterProfessional(ctx context.Context, in RegisterInput
 		if err := s.Repos.Profiles.Create(ctx, p); err != nil {
 			return apperr.Internal(err)
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "profile.registered", Category: models.AuditProfile,
-			TargetType: "profile", TargetID: p.ID.String(), ActorID: ptr(u.ID.String()), ActorRole: models.RoleProfessional,
-			Metadata: map[string]any{"establishment_id": e.ID.String()}})
 		codes, err = s.issueRecoveryCodes(ctx, u.ID)
 		return err
 	})
@@ -260,8 +255,6 @@ func (s *AuthService) RegisterProfessional(ctx context.Context, in RegisterInput
 }
 
 func (s *AuthService) afterRegister(ctx context.Context, u *models.User, codes []string) (*AuthResult, error) {
-	s.Audit.Record(ctx, AuditEvent{Action: "auth.register", Category: models.AuditAuth, TargetType: "user",
-		TargetID: u.ID.String(), ActorID: ptr(u.ID.String()), ActorRole: u.Role})
 	sess, err := s.createSession(ctx, u, nil)
 	if err != nil {
 		return nil, err
@@ -355,9 +348,6 @@ func (s *AuthService) RegenerateRecoveryCodes(ctx context.Context, actor *rbac.A
 	err = s.tx(ctx, func(ctx context.Context) error {
 		var err error
 		codes, err = s.issueRecoveryCodes(ctx, u.ID)
-		if err == nil {
-			s.Audit.Record(ctx, AuditEvent{Action: "auth.recovery_codes.regenerated", Category: models.AuditAuth, TargetType: "user", TargetID: u.ID.String()})
-		}
 		return err
 	})
 	return codes, err
@@ -379,15 +369,8 @@ func (s *AuthService) Recover(ctx context.Context, username, code, newPassword s
 		return apperr.Invalid("new_password", code)
 	}
 	fail := func(reason string) error {
-		n, _ := s.Redis.Incr(ctx, key).Result()
+		s.Redis.Incr(ctx, key)
 		s.Redis.Expire(ctx, key, recoverBlock)
-		sev := models.SeverityWarn
-		if n > recoverFailureLimit-1 {
-			sev = models.SeverityCritical
-			s.Audit.Security(ctx, "auth.recover.blocked", sev, map[string]any{"username": username})
-		}
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.recover.failed", Category: models.AuditAuth, Severity: models.SeverityWarn,
-			Metadata: map[string]any{"username": username, "reason": reason}})
 		return generic
 	}
 	u, err := s.Repos.Users.ByUsername(ctx, username)
@@ -427,8 +410,6 @@ func (s *AuthService) Recover(ctx context.Context, username, code, newPassword s
 		if err != nil {
 			return err
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.recover.succeeded", Category: models.AuditAuth, TargetType: "user",
-			TargetID: u.ID.String(), ActorID: ptr(u.ID.String()), ActorRole: u.Role})
 		return nil
 	})
 	if err != nil {
@@ -462,16 +443,16 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput, admin bool) (*Au
 		return nil, apperr.Unavailable("rate_limit_unavailable", err)
 	}
 	if err == nil && !res.Allowed {
-		s.Audit.Security(ctx, "auth.login.rate_limited", models.SeverityWarn, map[string]any{"username": in.Username, "admin": admin})
 		return nil, apperr.RateLimited(res.RetryAfter)
 	}
 	failed := func(u *models.User, reason string) error {
-		ev := AuditEvent{Action: "auth.login.failed", Category: models.AuditAuth, Severity: models.SeverityWarn,
-			Metadata: map[string]any{"username": in.Username, "reason": reason, "admin_endpoint": admin}, Alert: admin}
-		if u != nil {
-			ev.TargetType, ev.TargetID = "user", u.ID.String()
+		if admin {
+			targetID := ""
+			if u != nil {
+				targetID = u.ID.String()
+			}
+			s.Alert.Send(ctx, "auth.login.failed", models.SeverityWarn, "user", targetID)
 		}
-		s.Audit.Record(ctx, ev)
 		return errInvalidCredentials
 	}
 	if len(in.Password) > 128*4 || in.Username == "" {
@@ -487,8 +468,6 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput, admin bool) (*Au
 	}
 	now := s.now()
 	if u.LockedUntil != nil && u.LockedUntil.After(now) {
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.login.locked", Category: models.AuditSecurity, Severity: models.SeverityWarn,
-			TargetType: "user", TargetID: u.ID.String()})
 		return nil, apperr.RateLimited(u.LockedUntil.Sub(now))
 	}
 	ok, rehash, err := s.Hasher.Verify(ctx, in.Password, u.PasswordHash)
@@ -504,8 +483,6 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput, admin bool) (*Au
 				step = len(lockoutSteps) - 1
 			}
 			cols["locked_until"] = now.Add(lockoutSteps[step])
-			s.Audit.Record(ctx, AuditEvent{Action: "auth.account.locked", Category: models.AuditSecurity, Severity: models.SeverityWarn,
-				TargetType: "user", TargetID: u.ID.String(), Metadata: map[string]any{"duration": lockoutSteps[step].String()}})
 		}
 		_ = s.Repos.Users.Update(ctx, u.ID, cols)
 		return nil, failed(u, "bad_password")
@@ -514,9 +491,6 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput, admin bool) (*Au
 		return nil, failed(u, "status_"+strings.ToLower(u.Status))
 	}
 	if (u.Role == models.RoleAdmin) != admin {
-		if admin {
-			s.Audit.Security(ctx, "auth.admin_login.non_admin", models.SeverityWarn, map[string]any{"user_id": u.ID.String()})
-		}
 		return nil, failed(u, "wrong_endpoint")
 	}
 	cols := map[string]any{"failed_login_count": 0, "locked_until": nil, "last_login_at": now}
@@ -536,8 +510,6 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput, admin bool) (*Au
 	if err != nil {
 		return nil, err
 	}
-	s.Audit.Record(ctx, AuditEvent{Action: "auth.login.succeeded", Category: models.AuditAuth, TargetType: "user",
-		TargetID: u.ID.String(), ActorID: ptr(u.ID.String()), ActorRole: u.Role})
 	return &AuthResult{Session: sess, User: u}, nil
 }
 
@@ -547,8 +519,7 @@ func (s *AuthService) alertNewAdminDevice(ctx context.Context, u *models.User) {
 	s.DB.Conn(ctx).Model(&models.RefreshToken{}).
 		Where("user_id = ? AND ip_hash = ? AND user_agent = ?", u.ID, meta.IPHash, truncate(meta.UserAgent, 255)).Count(&n)
 	if n == 0 {
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.admin_login.new_device", Category: models.AuditSecurity, Severity: models.SeverityWarn,
-			TargetType: "user", TargetID: u.ID.String(), ActorID: ptr(u.ID.String()), ActorRole: u.Role, Alert: true})
+		s.Alert.Send(ctx, "auth.admin_login.new_device", models.SeverityWarn, "user", u.ID.String())
 	}
 }
 
@@ -669,11 +640,6 @@ func (s *AuthService) Refresh(ctx context.Context, raw string) (*AuthResult, err
 		return result, nil
 	case "reuse":
 		_ = s.Denylist.DenySessions(ctx, familyID)
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.refresh.reuse_detected", Category: models.AuditSecurity,
-			Severity: models.SeverityCritical, TargetType: "session", TargetID: familyID.String()})
-	default:
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.refresh.rejected", Category: models.AuditAuth, Severity: models.SeverityWarn,
-			Metadata: map[string]any{"reason": outcome}})
 	}
 	return nil, apperr.Unauthorized("invalid_refresh")
 }
@@ -729,9 +695,6 @@ func (s *AuthService) Logout(ctx context.Context, rawRefresh string, actor *rbac
 		}
 	}
 	_ = s.Denylist.DenySessions(ctx, fams...)
-	if len(fams) > 0 {
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.logout", Category: models.AuditAuth})
-	}
 	return nil
 }
 
@@ -739,7 +702,6 @@ func (s *AuthService) LogoutAll(ctx context.Context, actor *rbac.Actor) error {
 	if err := s.RevokeAllSessions(ctx, actor.UserID, nil, models.RevokeLogout); err != nil {
 		return err
 	}
-	s.Audit.Record(ctx, AuditEvent{Action: "auth.logout_all", Category: models.AuditAuth})
 	return nil
 }
 
@@ -793,7 +755,6 @@ func (s *AuthService) RevokeSession(ctx context.Context, actor *rbac.Actor, fami
 		return apperr.Internal(err)
 	}
 	_ = s.Denylist.DenySessions(ctx, familyID)
-	s.Audit.Record(ctx, AuditEvent{Action: "auth.session.revoked", Category: models.AuditAuth, TargetType: "session", TargetID: familyID.String()})
 	return nil
 }
 
@@ -807,7 +768,6 @@ func (s *AuthService) ChangePassword(ctx context.Context, actor *rbac.Actor, cur
 		return apperr.Internal(err)
 	}
 	if ok, _, _ := s.Hasher.Verify(ctx, current, u.PasswordHash); !ok {
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.password_change.failed", Category: models.AuditAuth, Severity: models.SeverityWarn})
 		return apperr.New(apperr.KindForbidden, "invalid_password", "current password is incorrect")
 	}
 	if code := validators.PasswordLength(next, u.Role == models.RoleAdmin); code != "" {
@@ -833,7 +793,6 @@ func (s *AuthService) ChangePassword(ctx context.Context, actor *rbac.Actor, cur
 	if err := s.RevokeAllSessions(ctx, u.ID, &keep, models.RevokePasswordChanged); err != nil {
 		return err
 	}
-	s.Audit.Record(ctx, AuditEvent{Action: "auth.password.changed", Category: models.AuditAuth, TargetType: "user", TargetID: u.ID.String()})
 	return nil
 }
 
@@ -853,8 +812,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, target *models.User, re
 		if err := s.RevokeAllSessions(ctx, target.ID, nil, models.RevokeAdminPasswordReset); err != nil {
 			return err
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "auth.password.reset", Category: models.AuditSecurity, Severity: models.SeverityWarn,
-			TargetType: "user", TargetID: target.ID.String(), Metadata: map[string]any{"reason": reason, "target_role": target.Role}, Alert: true})
+		s.Alert.Send(ctx, "auth.password.reset", models.SeverityWarn, "user", target.ID.String())
 		return nil
 	})
 	if err != nil {

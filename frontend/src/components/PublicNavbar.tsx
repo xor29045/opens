@@ -33,8 +33,8 @@ function NavbarInner() {
               Open<span>•</span>sex
             </a>
             <HStack as="nav" aria-label="Navigation principale" gap="6" display={{ base: 'none', md: 'flex' }}>
-              <CLink href="/profils" fontSize="sm" color="fg.muted" _hover={{ color: 'fg', textDecoration: 'none' }}>
-                Catalogue
+              <CLink href="/client/espace/decouvrir" fontSize="sm" color="fg.muted" _hover={{ color: 'fg', textDecoration: 'none' }}>
+                Découvrir
               </CLink>
               <CLink href="/gerant/register" fontSize="sm" color="fg.muted" _hover={{ color: 'fg', textDecoration: 'none' }}>
                 Vous êtes une maison ?

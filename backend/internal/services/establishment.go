@@ -143,8 +143,6 @@ func (s *EstablishmentService) Update(ctx context.Context, actor *rbac.Actor, in
 		if err := s.Repos.Establishments.Save(ctx, e); err != nil {
 			return apperr.Internal(err)
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "establishment.updated", Category: models.AuditEstablishment,
-			TargetType: "establishment", TargetID: e.ID.String()})
 
 		out, err = s.detail(ctx, e)
 		return err
@@ -264,8 +262,6 @@ func (s *EstablishmentService) ReplaceContacts(ctx context.Context, actor *rbac.
 		if err := s.Repos.Establishments.ReplaceContacts(ctx, actor.EstablishmentID, rows); err != nil {
 			return apperr.Internal(err)
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "establishment.contacts.updated", Category: models.AuditEstablishment,
-			TargetType: "establishment", TargetID: actor.EstablishmentID.String(), Metadata: map[string]any{"count": len(rows)}})
 		return nil
 	})
 	return rows, err

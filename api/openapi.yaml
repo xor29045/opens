@@ -590,8 +590,8 @@ paths:
       tags:
       - catalog
       operationId: get_profiles
+      description: Signed-in users only.
       security:
-      - {}
       - bearerAuth: []
       parameters:
       - $ref: '#/components/parameters/page'
@@ -709,6 +709,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PageProfileCard'
+        '401':
+          $ref: '#/components/responses/401'
         '422':
           $ref: '#/components/responses/422'
         '429':
@@ -719,8 +721,8 @@ paths:
       tags:
       - catalog
       operationId: get_profiles_slug
+      description: Signed-in users only.
       security:
-      - {}
       - bearerAuth: []
       parameters:
       - name: slug
@@ -735,6 +737,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PublicProfile'
+        '401':
+          $ref: '#/components/responses/401'
         '404':
           $ref: '#/components/responses/404'
         '429':
@@ -745,8 +749,8 @@ paths:
       tags:
       - catalog
       operationId: get_establishments_slug
+      description: Signed-in users only.
       security:
-      - {}
       - bearerAuth: []
       parameters:
       - name: slug
@@ -761,6 +765,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PublicEstablishment'
+        '401':
+          $ref: '#/components/responses/401'
         '404':
           $ref: '#/components/responses/404'
         '429':
@@ -2929,10 +2935,6 @@ paths:
                     type: array
                     items:
                       type: string
-                  history:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLog'
         '400':
           $ref: '#/components/responses/400'
         '401':
@@ -3265,10 +3267,6 @@ paths:
                     $ref: '#/components/schemas/AdminUser'
                   active_sessions:
                     type: integer
-                  history:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLog'
                   establishment:
                     $ref: '#/components/schemas/EstablishmentRef'
                   profile:
@@ -5470,70 +5468,6 @@ components:
       - amount_cents
       - currency
       - issued_at
-    AuditLog:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        occurred_at:
-          type: string
-          format: date-time
-        actor_user_id:
-          type: string
-          format: uuid
-          nullable: true
-        actor_role:
-          type: string
-          nullable: true
-        action:
-          type: string
-        category:
-          type: string
-          enum:
-          - SECURITY
-          - ADMIN
-          - BILLING
-          - ESTABLISHMENT
-          - PROFILE
-          - AUTH
-        severity:
-          type: string
-          enum:
-          - INFO
-          - WARN
-          - CRITICAL
-        target_type:
-          type: string
-          nullable: true
-        target_id:
-          type: string
-          nullable: true
-        ip_hash:
-          type: string
-          nullable: true
-        user_agent:
-          type: string
-          nullable: true
-        request_id:
-          type: string
-          nullable: true
-        metadata:
-          type: object
-      required:
-      - id
-      - occurred_at
-      - actor_user_id
-      - actor_role
-      - action
-      - category
-      - severity
-      - target_type
-      - target_id
-      - ip_hash
-      - user_agent
-      - request_id
-      - metadata
     Reason:
       type: object
       properties:
@@ -5699,8 +5633,6 @@ components:
           type: integer
         users_by_role_and_status:
           type: object
-        security_events_24h:
-          type: integer
         upcoming_due:
           type: array
           items:
@@ -5729,7 +5661,6 @@ components:
       - subscriptions_by_status
       - mrr_cents
       - users_by_role_and_status
-      - security_events_24h
       - upcoming_due
     AdminEstablishmentRow:
       allOf:

@@ -26,11 +26,11 @@ func TestDevSeed(t *testing.T) {
 	}
 
 	// Public catalogue and establishment pages.
-	cat := e.get("/api/v1/profiles?page_size=50", "").expect(http.StatusOK).JSON()
+	cat := e.browse("/api/v1/profiles?page_size=50").expect(http.StatusOK).JSON()
 	if cat["total"].(float64) < 15 {
 		t.Fatalf("catalogue too small: %v", cat["total"])
 	}
-	e.get("/api/v1/profiles?city=anvers", "").expect(http.StatusOK)
+	e.browse("/api/v1/profiles?city=anvers").expect(http.StatusOK)
 
 	// Manager dashboards: overview, pending, stats, billing.
 	m := e.login("rose_gerant", devseed.Password).expect(http.StatusOK).JSON()["access_token"].(string)

@@ -296,7 +296,6 @@ func (s *CatalogService) filterContacts(ctx context.Context, cs []genericContact
 		res, err := s.Limiter.Allow(ctx, "contacts:clients:"+actor.UserID.String(), LimitClientContacts...)
 		if err == nil && !res.Allowed {
 			allowClients, rateLimited = false, true
-			s.Audit.Security(ctx, "catalog.contacts.rate_limited", models.SeverityWarn, nil)
 		} else if statsProfile != uuid.Nil {
 			s.Stats.RecordContactView(ctx, statsProfile)
 		}

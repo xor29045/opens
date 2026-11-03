@@ -50,7 +50,7 @@ export function QueryBlock({ isPending, isError, error, onRetry, children }: {
 
 /**
  * Button that opens a confirmation dialog. When `withReason` is set, a
- * non-empty reason is required (RM-60): it is stored in the audit trail.
+ * non-empty reason is required (RM-60).
  */
 export function ActionDialog({ trigger, title, description, confirmLabel, withReason = false, danger = false, onConfirm }: {
   trigger: string;
@@ -101,7 +101,6 @@ export function ActionDialog({ trigger, title, description, confirmLabel, withRe
                   <Field.Root required>
                     <Field.Label>Motif</Field.Label>
                     <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} />
-                    <Field.HelperText>Conservé dans le journal d’audit.</Field.HelperText>
                   </Field.Root>
                 )}
                 {error && <Text color="danger" role="alert">{error}</Text>}

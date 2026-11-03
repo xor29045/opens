@@ -176,8 +176,6 @@ func (s *BillingService) Subscribe(ctx context.Context, actor *rbac.Actor, planC
 				}
 				return apperr.Internal(err)
 			}
-			s.Audit.Record(ctx, AuditEvent{Action: "billing.subscription.created", Category: models.AuditBilling,
-				TargetType: "subscription", TargetID: sub.ID.String(), Metadata: map[string]any{"plan": plan.Code}})
 		default:
 			return apperr.Internal(err)
 		}
@@ -259,7 +257,6 @@ func (s *BillingService) newPayment(ctx context.Context, sub *models.Subscriptio
 	if err := s.Repos.Billing.CreatePayment(ctx, p); err != nil {
 		return nil, apperr.Internal(err)
 	}
-	s.Audit.Record(ctx, AuditEvent{Action: "billing.payment.created", Category: models.AuditBilling, TargetType: "payment", TargetID: p.ID.String()})
 	return p, nil
 }
 
@@ -298,11 +295,6 @@ func (s *BillingService) setCancel(ctx context.Context, actor *rbac.Actor, cance
 		if err := s.Repos.Billing.UpdateSubscription(ctx, sub.ID, map[string]any{"cancel_at_period_end": cancel}); err != nil {
 			return apperr.Internal(err)
 		}
-		action := "billing.subscription.cancel_scheduled"
-		if !cancel {
-			action = "billing.subscription.resumed"
-		}
-		s.Audit.Record(ctx, AuditEvent{Action: action, Category: models.AuditBilling, TargetType: "subscription", TargetID: sub.ID.String()})
 		return s.Publication.Recompute(ctx, actor.EstablishmentID)
 	})
 	if err != nil {
@@ -368,7 +360,6 @@ func (s *BillingService) InvoicePDF(ctx context.Context, actor *rbac.Actor, id u
 func (s *BillingService) HandleIPN(ctx context.Context, body []byte, signature string) error {
 	ipn, err := s.Payment.ParseIPN(body, signature)
 	if err != nil {
-		s.Audit.Security(ctx, "billing.ipn.invalid_signature", models.SeverityWarn, map[string]any{"provider": s.Payment.Name()})
 		return apperr.Unauthorized("invalid_signature")
 	}
 	now := s.now()
@@ -425,7 +416,6 @@ var errMismatch = errors.New("provider data does not match the payment")
 func (s *BillingService) applyProviderStatus(ctx context.Context, ps *payment.PaymentStatus, source string) error {
 	orderID, err := uuid.Parse(ps.OrderID)
 	if err != nil {
-		s.Audit.Security(ctx, "billing.ipn.unknown_order", models.SeverityWarn, map[string]any{"order_id": ps.OrderID, "source": source})
 		return apperr.NotFound("payment")
 	}
 	newStatus, ok := payment.MapStatus(ps.RawStatus)
@@ -436,7 +426,6 @@ func (s *BillingService) applyProviderStatus(ctx context.Context, ps *payment.Pa
 		p, err := s.Repos.Billing.PaymentForUpdate(ctx, orderID)
 		if err != nil {
 			if database.IsNotFound(err) {
-				s.Audit.Security(ctx, "billing.ipn.unknown_order", models.SeverityWarn, map[string]any{"order_id": ps.OrderID, "source": source})
 				return apperr.NotFound("payment")
 			}
 			return apperr.Internal(err)
@@ -446,8 +435,7 @@ func (s *BillingService) applyProviderStatus(ctx context.Context, ps *payment.Pa
 			(p.ProviderInvoiceID != nil && ps.InvoiceID != "" && *p.ProviderInvoiceID != ps.InvoiceID) ||
 			(p.ProviderPaymentID != nil && *p.ProviderPaymentID != ps.PaymentID)
 		if mismatch {
-			s.Audit.Record(ctx, AuditEvent{Action: "billing.ipn.mismatch", Category: models.AuditSecurity, Severity: models.SeverityCritical,
-				TargetType: "payment", TargetID: p.ID.String(), Metadata: map[string]any{"source": source}, Alert: true})
+			s.Alert.Send(ctx, "billing.ipn.mismatch", models.SeverityCritical, "payment", p.ID.String())
 			return apperr.Unprocessable("payment_mismatch", errMismatch.Error())
 		}
 		if newStatus == models.PaymentPartial && payment.WithinTolerance(ps.PayAmount, ps.ActuallyPaid, s.Cfg.UnderpayToleranceBPS) {
@@ -478,17 +466,11 @@ func (s *BillingService) applyProviderStatus(ctx context.Context, ps *payment.Pa
 		if err := s.Repos.Billing.UpdatePayment(ctx, p.ID, cols); err != nil {
 			return apperr.Internal(err)
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "billing.payment.status_changed", Category: models.AuditBilling, TargetType: "payment",
-			TargetID: p.ID.String(), Metadata: map[string]any{"from": p.Status, "to": newStatus, "source": source}})
 		switch newStatus {
 		case models.PaymentPaid:
 			return s.markPaid(ctx, p)
 		case models.PaymentRefunded:
-			s.Audit.Record(ctx, AuditEvent{Action: "billing.payment.refunded", Category: models.AuditBilling, Severity: models.SeverityWarn,
-				TargetType: "payment", TargetID: p.ID.String(), Alert: true})
-		case models.PaymentPartial:
-			s.Audit.Record(ctx, AuditEvent{Action: "billing.payment.partial", Category: models.AuditBilling, Severity: models.SeverityWarn,
-				TargetType: "payment", TargetID: p.ID.String()})
+			s.Alert.Send(ctx, "billing.payment.refunded", models.SeverityWarn, "payment", p.ID.String())
 		}
 		return nil
 	})
@@ -508,8 +490,7 @@ func (s *BillingService) markPaid(ctx context.Context, p *models.Payment) error 
 	now := s.now()
 	if sub.Status == models.SubCanceled {
 		if other, err := s.Repos.Billing.CurrentSubscription(ctx, sub.EstablishmentID); err == nil && other.ID != sub.ID {
-			s.Audit.Record(ctx, AuditEvent{Action: "billing.payment.orphan", Category: models.AuditBilling, Severity: models.SeverityCritical,
-				TargetType: "payment", TargetID: p.ID.String(), Alert: true})
+			s.Alert.Send(ctx, "billing.payment.orphan", models.SeverityCritical, "payment", p.ID.String())
 			return s.Repos.Billing.UpdatePayment(ctx, p.ID, map[string]any{"paid_at": now})
 		}
 	}
@@ -534,18 +515,11 @@ func (s *BillingService) markPaid(ctx context.Context, p *models.Payment) error 
 	if err := s.issueInvoice(ctx, p, now); err != nil {
 		return err
 	}
-	s.Audit.Record(ctx, AuditEvent{Action: "billing.subscription.activated", Category: models.AuditBilling, TargetType: "subscription",
-		TargetID: sub.ID.String(), Metadata: map[string]any{"from": sub.Status, "period_end": end.Format(time.RFC3339)}})
 	// Once the subscription is paid, attested profiles go in service without
 	// waiting for a manual step (ADR-020). Pending registrations still need
 	// the manager's age attestation.
-	activated, err := s.Repos.Profiles.ActivateAttestedDrafts(ctx, sub.EstablishmentID, now)
-	if err != nil {
+	if _, err := s.Repos.Profiles.ActivateAttestedDrafts(ctx, sub.EstablishmentID, now); err != nil {
 		return apperr.Internal(err)
-	}
-	for _, id := range activated {
-		s.Audit.Record(ctx, AuditEvent{Action: "profile.activated", Category: models.AuditProfile, TargetType: "profile",
-			TargetID: id.String(), ActorRole: "SYSTEM", Metadata: map[string]any{"reason": "subscription_paid"}})
 	}
 	return s.Publication.Recompute(ctx, sub.EstablishmentID)
 }
@@ -608,8 +582,6 @@ func (s *BillingService) issueInvoice(ctx context.Context, p *models.Payment, no
 	if err := s.Repos.Billing.CreateInvoice(ctx, inv); err != nil {
 		return apperr.Internal(err)
 	}
-	s.Audit.Record(ctx, AuditEvent{Action: "billing.invoice.issued", Category: models.AuditBilling, TargetType: "invoice",
-		TargetID: inv.ID.String(), Metadata: map[string]any{"number": number}})
 	return nil
 }
 
@@ -640,7 +612,7 @@ func renderInvoice(inv *models.Invoice, snap billingSnapshot) []byte {
 // ---------------------------------------------------------------- admin reconciliation
 
 // Reconcile re-queries the provider for a payment; with forcePaid an admin
-// accepts a PARTIAL payment (RM-35). Always audited with a reason.
+// accepts a PARTIAL payment (RM-35). A reason is required.
 func (s *BillingService) Reconcile(ctx context.Context, paymentID uuid.UUID, reason string, forcePaid bool) (*models.Payment, error) {
 	reason, err := reasonRequired(reason)
 	if err != nil {
@@ -653,8 +625,6 @@ func (s *BillingService) Reconcile(ctx context.Context, paymentID uuid.UUID, rea
 		}
 		return nil, apperr.Internal(err)
 	}
-	s.Audit.Record(ctx, AuditEvent{Action: "admin.payment.reconcile", Category: models.AuditAdmin, Severity: models.SeverityWarn,
-		TargetType: "payment", TargetID: p.ID.String(), Metadata: map[string]any{"reason": reason, "force_paid": forcePaid}})
 	if p.ProviderPaymentID != nil {
 		ps, err := s.Payment.GetPayment(ctx, *p.ProviderPaymentID)
 		if err != nil {
@@ -725,12 +695,11 @@ func (s *BillingService) ExpirePeriods(ctx context.Context) (int, error) {
 	now := s.now()
 	touched := map[uuid.UUID]bool{}
 	changes := 0
-	transition := func(sub models.Subscription, cols map[string]any, action string) {
+	transition := func(sub models.Subscription, cols map[string]any) {
 		err := s.tx(ctx, func(ctx context.Context) error {
 			if err := s.Repos.Billing.UpdateSubscription(ctx, sub.ID, cols); err != nil {
 				return err
 			}
-			s.Audit.Record(ctx, AuditEvent{Action: action, Category: models.AuditBilling, TargetType: "subscription", TargetID: sub.ID.String(), ActorRole: "SYSTEM"})
 			return nil
 		})
 		if err != nil {
@@ -746,7 +715,7 @@ func (s *BillingService) ExpirePeriods(ctx context.Context) (int, error) {
 	}
 	for _, sub := range due {
 		if sub.CancelAtPeriodEnd || sub.Status == models.SubTrialing && sub.CurrentPeriodStart == nil {
-			transition(sub, map[string]any{"status": models.SubCanceled, "canceled_at": now}, "billing.subscription.canceled")
+			transition(sub, map[string]any{"status": models.SubCanceled, "canceled_at": now})
 			continue
 		}
 		plan, err := s.Repos.Billing.PlanByID(ctx, sub.PlanID)
@@ -754,7 +723,7 @@ func (s *BillingService) ExpirePeriods(ctx context.Context) (int, error) {
 			continue
 		}
 		grace := sub.CurrentPeriodEnd.AddDate(0, 0, plan.GraceDays)
-		transition(sub, map[string]any{"status": models.SubPastDue, "grace_until": grace}, "billing.subscription.past_due")
+		transition(sub, map[string]any{"status": models.SubPastDue, "grace_until": grace})
 	}
 	pastDue, err := s.Repos.Billing.SubscriptionsByStatus(ctx, models.SubPastDue)
 	if err != nil {
@@ -763,7 +732,7 @@ func (s *BillingService) ExpirePeriods(ctx context.Context) (int, error) {
 	for _, sub := range pastDue {
 		touched[sub.EstablishmentID] = true // grace may have ended: unpublish
 		if sub.CurrentPeriodEnd != nil && !now.Before(sub.CurrentPeriodEnd.Add(cancelAfterPastDue)) {
-			transition(sub, map[string]any{"status": models.SubCanceled, "canceled_at": now}, "billing.subscription.canceled")
+			transition(sub, map[string]any{"status": models.SubCanceled, "canceled_at": now})
 		}
 	}
 	incomplete, err := s.Repos.Billing.SubscriptionsByStatus(ctx, models.SubIncomplete)
@@ -780,7 +749,7 @@ func (s *BillingService) ExpirePeriods(ctx context.Context) (int, error) {
 			ref = last.UpdatedAt
 		}
 		if now.Sub(ref) >= incompleteTTL {
-			transition(sub, map[string]any{"status": models.SubCanceled, "canceled_at": now}, "billing.subscription.canceled")
+			transition(sub, map[string]any{"status": models.SubCanceled, "canceled_at": now})
 		}
 	}
 	ids := make([]uuid.UUID, 0, len(touched))

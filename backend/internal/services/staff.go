@@ -44,7 +44,6 @@ func (s *StaffService) Reject(ctx context.Context, actor *rbac.Actor, profileID 
 			return apperr.Internal(err)
 		}
 		userID = p.UserID
-		s.Profiles.audit(ctx, "profile.registration.rejected", p, map[string]any{"reason": reason})
 		if err := s.Repos.Profiles.HardDelete(ctx, p.ID); err != nil {
 			return apperr.Internal(err)
 		}
@@ -95,7 +94,6 @@ func (s *StaffService) SuspendAccount(ctx context.Context, actor *rbac.Actor, pr
 		if err := s.Auth.RevokeAllSessions(ctx, u.ID, nil, models.RevokeSuspended); err != nil {
 			return err
 		}
-		s.Profiles.audit(ctx, "staff.account.suspended", p, map[string]any{"reason": reason, "user_id": u.ID.String()})
 		return s.Publication.Recompute(ctx, p.EstablishmentID)
 	})
 	if err == nil {
@@ -116,7 +114,6 @@ func (s *StaffService) RestoreAccount(ctx context.Context, actor *rbac.Actor, pr
 		if err := s.Repos.Users.Update(ctx, u.ID, map[string]any{"status": models.UserActive, "status_reason": nil}); err != nil {
 			return apperr.Internal(err)
 		}
-		s.Profiles.audit(ctx, "staff.account.restored", p, map[string]any{"user_id": u.ID.String()})
 		return s.Publication.Recompute(ctx, p.EstablishmentID)
 	})
 	if err == nil {

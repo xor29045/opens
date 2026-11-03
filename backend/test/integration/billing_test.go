@@ -103,7 +103,7 @@ func TestSubscriptionLifecycle(t *testing.T) {
 			}
 		}
 	}
-	catalog := func() float64 { return e.get("/api/v1/profiles", "").JSON()["total"].(float64) }
+	catalog := func() float64 { return e.browse("/api/v1/profiles").JSON()["total"].(float64) }
 
 	// J-5: renewal invoice + reminder.
 	e.clock.Advance(25*24*time.Hour + time.Hour)

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Creates the least-privilege roles (§13.2) and the application database.
 #   app_migrator : owner of the schema, used by `ops migrate` only
-#   app_rw       : used by the API and the worker (no UPDATE/DELETE on audit_logs)
+#   app_rw       : used by the API and the worker
 #   app_ro       : read-only (reporting, support)
 set -eu
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<SQL

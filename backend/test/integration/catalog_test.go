@@ -26,10 +26,10 @@ func TestContactVisibility(t *testing.T) {
 	otherP := e.register("professional", map[string]any{"establishment_slug": otherSlug})
 	client := e.register("client", nil)
 	suspended := e.register("client", nil)
-	profSlug := e.get("/api/v1/profiles", "").JSON()["items"].([]any)[0].(map[string]any)["slug"].(string)
+	profSlug := e.get("/api/v1/profiles", client.Token).JSON()["items"].([]any)[0].(map[string]any)["slug"].(string)
 	path := "/api/v1/profiles/" + profSlug
 
-	for name, tok := range map[string]string{"visitor": "", "other manager": otherM.Token, "other pro": otherP.Token} {
+	for name, tok := range map[string]string{"other manager": otherM.Token, "other pro": otherP.Token} {
 		got := e.get(path, tok).expect(200).JSON()
 		ct := contactTypes(got)
 		if !ct["PHONE"] || ct["WHATSAPP"] || ct["TELEGRAM"] || got["contacts_restricted"] != true {
@@ -46,13 +46,13 @@ func TestContactVisibility(t *testing.T) {
 	if ct := contactTypes(e.get(path, suspended.Token).expect(200).JSON()); ct["WHATSAPP"] {
 		t.Error("suspended client sees CLIENTS contacts")
 	}
+	// Anonymous visitors cannot read the catalogue.
+	e.get(path, "").expect(http.StatusUnauthorized)
+	e.get("/api/v1/profiles", "").expect(http.StatusUnauthorized)
+	e.get("/api/v1/establishments/"+slug, "").expect(http.StatusUnauthorized)
 	// Establishment page: verification phone and private address never exposed.
-	est := e.get("/api/v1/establishments/"+slug, "").expect(200)
-	if bytes.Contains(est.Body, []byte("+32470000001")) || bytes.Contains(est.Body, []byte("Rue X")) {
-		t.Fatal("verification phone or private address leaked")
-	}
-	est = e.get("/api/v1/establishments/"+slug, client.Token).expect(200)
-	if bytes.Contains(est.Body, []byte("+32470000001")) || !bytes.Contains(est.Body, []byte("+32470000003")) {
+	est := e.get("/api/v1/establishments/"+slug, client.Token).expect(200)
+	if bytes.Contains(est.Body, []byte("+32470000001")) || bytes.Contains(est.Body, []byte("Rue X")) || !bytes.Contains(est.Body, []byte("+32470000003")) {
 		t.Fatalf("client view of establishment contacts: %s", est.Body)
 	}
 	// Stats count the views (aggregated).
@@ -139,10 +139,10 @@ func TestPublicationConditions(t *testing.T) {
 	}
 	// Hidden establishment.
 	e.post("/api/v1/admin/establishments/"+estID+"/hide", adm.Token, map[string]any{"reason": "contrôle"}).expect(204)
-	if e.get("/api/v1/profiles", "").JSON()["total"].(float64) != 0 {
+	if e.browse("/api/v1/profiles").JSON()["total"].(float64) != 0 {
 		t.Fatal("hidden establishment profiles published")
 	}
-	e.get("/api/v1/establishments/"+slug, "").expect(404)
+	e.browse("/api/v1/establishments/" + slug).expect(404)
 }
 
 // Scenario 7: favourites are private and survive unpublication as "unavailable".

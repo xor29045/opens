@@ -326,35 +326,12 @@ type PaymentProviderEvent struct {
 	ReceivedAt      time.Time
 }
 
-// Audit categories and severities.
+// Alert severities.
 const (
-	AuditSecurity      = "SECURITY"
-	AuditAdmin         = "ADMIN"
-	AuditBilling       = "BILLING"
-	AuditEstablishment = "ESTABLISHMENT"
-	AuditProfile       = "PROFILE"
-	AuditAuth          = "AUTH"
-
 	SeverityInfo     = "INFO"
 	SeverityWarn     = "WARN"
 	SeverityCritical = "CRITICAL"
 )
-
-type AuditLog struct {
-	ID          int64 `gorm:"primaryKey;->"`
-	OccurredAt  time.Time
-	ActorUserID *uuid.UUID `gorm:"type:uuid"`
-	ActorRole   *string
-	Action      string
-	Category    string
-	Severity    string
-	TargetType  *string
-	TargetID    *string
-	IPHash      *string
-	UserAgent   *string
-	RequestID   *string
-	Metadata    JSON
-}
 
 // Payment statuses (same values as pkg/payment).
 const (

@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Badge, Box, Button, Grid, HStack, Heading, Link, List, Stack, Text, Image, Table } from '@chakra-ui/react';
 import Providers from '../../components/Providers';
 import { Section } from '../../components/ui';
+import { QueryBlock } from '../dashboard/shared';
 import { useSession } from '../../lib/auth/useSession';
 import { api } from '../../lib/api/client';
 import { describeError } from '../../lib/api/problem';
@@ -87,7 +89,7 @@ function Contacts({ p }: { p: PublicProfile }) {
   );
 }
 
-function ProfileInner({ profile: p }: { profile: PublicProfile }) {
+export function ProfileInner({ profile: p }: { profile: PublicProfile }) {
   const [active, setActive] = useState(0);
   const photos = p.photos;
   const current = photos[active];
@@ -166,10 +168,24 @@ function ProfileInner({ profile: p }: { profile: PublicProfile }) {
   );
 }
 
-export default function ProfileView({ profile }: { profile: PublicProfile }) {
+// The catalogue is reserved to signed-in users: the profile is loaded in the
+// browser with the access token (the page itself is behind the login guard).
+function ProfileLoader({ slug }: { slug: string }) {
+  const q = useQuery({
+    queryKey: ['catalog', 'profile', slug],
+    queryFn: ({ signal }) => api<PublicProfile>(`/profiles/${encodeURIComponent(slug)}`, { signal }),
+  });
+  return (
+    <QueryBlock isPending={q.isPending} isError={q.isError} error={q.error} onRetry={() => q.refetch()}>
+      {q.data && <ProfileInner profile={q.data} />}
+    </QueryBlock>
+  );
+}
+
+export default function ProfileView({ slug }: { slug: string }) {
   return (
     <Providers>
-      <ProfileInner profile={profile} />
+      <ProfileLoader slug={slug} />
     </Providers>
   );
 }

@@ -118,8 +118,7 @@ func (s *BootstrapService) ensureOne(ctx context.Context, spec adminSpec) error 
 		if err := s.Repos.Users.Create(ctx, u, models.RoleAdmin); err != nil {
 			return err
 		}
-		s.Audit.Record(ctx, AuditEvent{Action: "admin.bootstrap.created", Category: models.AuditSecurity, Severity: models.SeverityWarn,
-			TargetType: "user", TargetID: u.ID.String(), ActorRole: "SYSTEM", Alert: true})
+		s.Alert.Send(ctx, "admin.bootstrap.created", models.SeverityWarn, "user", u.ID.String())
 		s.Logger.Warn("bootstrap admin created; the password must be changed at first login", "username", spec.Username)
 		return nil
 	})

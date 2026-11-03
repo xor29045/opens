@@ -3,7 +3,8 @@ import { defineMiddleware } from 'astro:middleware';
 // Private spaces: without a refresh cookie there is no session, so the user
 // is sent to the login page before any island renders (UX only, §6.2; the
 // API remains the only authority).
-const privatePrefixes = ['/gerant/dashboard', '/pro/dashboard', '/client/espace', '/admin', '/compte/mot-de-passe'];
+// The catalogue (profiles and establishments) is reserved to signed-in users.
+const privatePrefixes = ['/gerant/dashboard', '/pro/dashboard', '/client/espace', '/admin', '/compte/mot-de-passe', '/profils', '/etablissements'];
 const publicExceptions = new Set(['/admin/login']);
 // `__Host-rt` in production; `rt` when COOKIE_SECURE=false (local http only).
 const refreshCookies = ['__Host-rt', 'rt'];
@@ -15,7 +16,8 @@ export function isPrivate(path: string): boolean {
 
 export function loginFor(path: string): string {
   if (path.startsWith('/gerant')) return '/gerant/login';
-  if (path.startsWith('/pro')) return '/pro/login';
+  // `/profils` also starts with `/pro`: match the professional space exactly.
+  if (path === '/pro' || path.startsWith('/pro/')) return '/pro/login';
   if (path.startsWith('/admin')) return '/admin/login';
   return '/client/login';
 }
