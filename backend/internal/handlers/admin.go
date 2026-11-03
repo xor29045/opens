@@ -1,11 +1,6 @@
 package handlers
 
 import (
-	"encoding/csv"
-	"encoding/json"
-	"strconv"
-	"time"
-
 	"github.com/gin-gonic/gin"
 
 	"opensex/backend/internal/apperr"
@@ -389,96 +384,4 @@ func (h *Handler) AdminDeleteRegion(c *gin.Context) {
 		return
 	}
 	ok(c, gin.H{"deactivated": deactivated, "deleted": !deactivated})
-}
-
-// ---------------------------------------------------------------- audit
-
-func auditFilter(c *gin.Context) (repositories.AuditFilter, error) {
-	f := repositories.AuditFilter{Category: c.Query("category"), Action: c.Query("action"), Severity: c.Query("severity"),
-		ActorID: c.Query("actor_id"), TargetType: c.Query("target_type"), TargetID: c.Query("target_id")}
-	if v := c.Query("cursor"); v != "" {
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return f, apperr.Invalid("cursor", "invalid_cursor")
-		}
-		f.BeforeID = n
-	}
-	for name, dst := range map[string]**time.Time{"from": &f.From, "to": &f.To} {
-		if v := c.Query(name); v != "" {
-			t, err := time.Parse(time.RFC3339, v)
-			if err != nil {
-				return f, apperr.Invalid(name, "invalid_datetime")
-			}
-			*dst = &t
-		}
-	}
-	return f, nil
-}
-
-func (h *Handler) auditList(c *gin.Context, category string) {
-	f, err := auditFilter(c)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	if category != "" {
-		f.Category = category
-	}
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	rows, err := h.Svc.Admin.AuditLogs(c.Request.Context(), f, limit)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	var next *string
-	if len(rows) > 0 && (limit == 0 && len(rows) == 100 || len(rows) == limit) {
-		s := strconv.FormatInt(rows[len(rows)-1].ID, 10)
-		next = &s
-	}
-	ok(c, gin.H{"items": dto.MapSlice(rows, dto.NewAuditLog), "next_cursor": next})
-}
-
-func (h *Handler) AdminAuditLogs(c *gin.Context)      { h.auditList(c, "") }
-func (h *Handler) AdminSecurityEvents(c *gin.Context) { h.auditList(c, models.AuditSecurity) }
-
-func (h *Handler) AdminAuditExport(c *gin.Context) {
-	f, err := auditFilter(c)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	rows, err := h.Svc.Admin.ExportAudit(c.Request.Context(), f)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", `attachment; filename="audit-`+h.now().Format("20060102-150405")+`.csv"`)
-	c.Header("Cache-Control", "no-store")
-	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"id", "occurred_at", "actor_user_id", "actor_role", "action", "category", "severity", "target_type", "target_id", "request_id", "metadata"})
-	str := func(p *string) string {
-		if p == nil {
-			return ""
-		}
-		return csvSafe(*p)
-	}
-	for _, r := range rows {
-		actorID := ""
-		if r.ActorUserID != nil {
-			actorID = r.ActorUserID.String()
-		}
-		meta, _ := json.Marshal(r.Metadata)
-		_ = w.Write([]string{strconv.FormatInt(r.ID, 10), r.OccurredAt.Format(time.RFC3339), actorID, str(r.ActorRole), csvSafe(r.Action),
-			r.Category, r.Severity, str(r.TargetType), str(r.TargetID), str(r.RequestID), csvSafe(string(meta))})
-	}
-	w.Flush()
-}
-
-// csvSafe neutralises spreadsheet formula injection.
-func csvSafe(s string) string {
-	if s != "" && (s[0] == '=' || s[0] == '+' || s[0] == '-' || s[0] == '@') {
-		return "'" + s
-	}
-	return s
 }

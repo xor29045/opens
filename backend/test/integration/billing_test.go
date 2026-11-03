@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"net/http"
 	"testing"
 	"time"
 
@@ -24,11 +23,7 @@ func (e *env) fresh(m account) account {
 func TestIPN(t *testing.T) {
 	e := newEnv(t)
 	adm := e.adminAccount()
-	m, _ := e.verifiedManager(adm.Token)
-
-	// Unverified establishment cannot subscribe.
-	other := e.register("manager", nil)
-	e.post("/api/v1/billing/subscription", other.Token, map[string]any{}).expect(http.StatusForbidden)
+	m, _ := e.readyManager()
 
 	p := e.post("/api/v1/billing/subscription", m.Token, map[string]any{}).expect(201).JSON()
 	pid := p["id"].(string)
@@ -95,8 +90,7 @@ func TestIPN(t *testing.T) {
 // T5.17: subscription life cycle with a simulated clock, J-5 → J+14.
 func TestSubscriptionLifecycle(t *testing.T) {
 	e := newEnv(t)
-	adm := e.adminAccount()
-	m, slug := e.verifiedManager(adm.Token)
+	m, slug := e.readyManager()
 	e.publishedProfile(m, slug)
 	e.subscribeAndPay(m)
 	ctx := context.Background()

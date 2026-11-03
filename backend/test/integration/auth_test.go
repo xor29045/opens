@@ -71,7 +71,7 @@ func TestRefreshScenarios(t *testing.T) {
 func TestRevocationByAdmin(t *testing.T) {
 	e := newEnv(t)
 	adm := e.adminAccount()
-	m, slug := e.verifiedManager(adm.Token)
+	m, slug := e.readyManager()
 	p, _ := e.publishedProfile(m, slug)
 	e.subscribeAndPay(m)
 

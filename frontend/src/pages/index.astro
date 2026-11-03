@@ -20,8 +20,8 @@ const cities = allRegions.filter((r) => r.kind === 'CITY');
 const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
 ---
 <Public
-  title="Maisons agréées et professionnel·les en Belgique"
-  description="Découvre les professionnel·les des maisons agréées en Belgique. Établissements vérifiés, profils attestés, coordonnées protégées."
+  title="Professionnel·les et maisons près de chez toi"
+  description="Découvre les professionnel·les des maisons partenaires. Profils majeurs attestés, coordonnées protégées."
   contained={false}
 >
   <section class="os-hero" aria-labelledby="hero-title">
@@ -35,13 +35,13 @@ const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
     </svg>
     <div class="os-container os-hero__grid" style="position: relative;">
       <div>
-        <span class="os-eyebrow">Belgique · Maisons agréées</span>
+        <span class="os-eyebrow">Maisons partenaires</span>
         <h1 id="hero-title" class="os-title os-title--xl">
           Des rencontres choisies,<br />dans des maisons <em>de confiance</em>.
         </h1>
         <p class="os-lead">
-          Parcours les profils des professionnel·les employé·es par des établissements agréés et vérifiés.
-          Chaque profil est attesté par sa maison. Tes recherches restent discrètes.
+          Parcours les profils des professionnel·les des maisons présentes sur la plateforme.
+          Chaque profil est attesté majeur par sa maison. Tes recherches restent discrètes.
         </p>
         <form class="os-search" action="/profils" method="get" role="search" aria-label="Rechercher par ville">
           <label for="hero-city" class="visually-hidden">Ville</label>
@@ -57,8 +57,8 @@ const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
         </form>
         <div class="os-stats">
           <div class="os-stat"><strong>{total}</strong><span>profils publiés</span></div>
-          <div class="os-stat"><strong>100 %</strong><span>maisons vérifiées</span></div>
-          <div class="os-stat"><strong>18+</strong><span>âge attesté par l’employeur</span></div>
+          <div class="os-stat"><strong>18+</strong><span>âge attesté par la maison</span></div>
+          <div class="os-stat"><strong>0</strong><span>e-mail demandé</span></div>
         </div>
       </div>
       <div class="os-mosaic" aria-hidden="true">
@@ -77,41 +77,6 @@ const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
     </div>
   </section>
 
-  <section class="os-section" aria-labelledby="latest-title">
-    <div class="os-container">
-      <div class="os-section-head">
-        <div>
-          <span class="os-eyebrow">À découvrir</span>
-          <h2 id="latest-title" class="os-title os-title--lg">Nouveaux profils</h2>
-        </div>
-        <a class="os-link-arrow" href="/profils">Voir tout le catalogue →</a>
-      </div>
-      {cards.length > 0 ? (
-        <div class="os-cards">
-          {cards.map((c, i) => <ProfileCard card={c} eager={i < 4} />)}
-        </div>
-      ) : (
-        <p class="os-lead">Les premiers profils arrivent bientôt. Les maisons sont en cours de vérification.</p>
-      )}
-    </div>
-  </section>
-
-  {cities.length > 0 && (
-    <section class="os-section" aria-labelledby="cities-title">
-      <div class="os-container">
-        <div class="os-section-head">
-          <div>
-            <span class="os-eyebrow">Près de chez toi</span>
-            <h2 id="cities-title" class="os-title os-title--lg">Explorer par ville</h2>
-          </div>
-        </div>
-        <div class="os-chips">
-          {cities.map((c) => <a class="os-chip" href={`/profils?city=${c.slug}`}>{c.name}</a>)}
-        </div>
-      </div>
-    </section>
-  )}
-
   <section class="os-section" aria-labelledby="trust-title">
     <div class="os-container">
       <div class="os-section-head">
@@ -125,15 +90,15 @@ const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
           <div class="os-feature__icon" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" /><path d="M9 12l2 2 4-4" /></svg>
           </div>
-          <h3>Maisons vérifiées</h3>
-          <p>Le numéro d’entreprise et l’agrément de chaque établissement sont contrôlés avant toute publication. L’agrément est affiché sur chaque fiche.</p>
+          <h3>Coordonnées protégées</h3>
+          <p>Chaque maison et chaque professionnel·le choisit qui voit ses coordonnées : tout le monde, les membres inscrits, ou personne.</p>
         </article>
         <article class="os-feature">
           <div class="os-feature__icon" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
           </div>
           <h3>Profils attestés</h3>
-          <p>Chaque professionnel·le est salarié·e de sa maison, qui atteste son âge et son accord écrit pour la publication.</p>
+          <p>Chaque maison atteste l’âge (18 ans minimum) et l’accord de chaque personne avant sa publication.</p>
         </article>
         <article class="os-feature">
           <div class="os-feature__icon" aria-hidden="true">
@@ -150,7 +115,7 @@ const mosaic = cards.filter((c) => c.photo_url).slice(0, 4);
     <div class="os-container os-split">
       <div class="os-split__panel os-split__panel--accent">
         <span class="os-eyebrow">Établissements</span>
-        <h3>Vous dirigez une maison agréée ?</h3>
+        <h3>Vous dirigez une maison ?</h3>
         <p>Présentez votre établissement et votre équipe à une clientèle qui cherche la sérénité.</p>
         <ul>
           <li>Fiche établissement avec horaires et coordonnées</li>

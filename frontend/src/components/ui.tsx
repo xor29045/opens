@@ -35,14 +35,14 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 }
 
 const statusColors: Record<string, string> = {
-  VERIFIED: 'green', PENDING: 'orange', DRAFT: 'gray', REJECTED: 'red',
+  PENDING: 'orange', DRAFT: 'gray',
   ACTIVE: 'green', PENDING_APPROVAL: 'orange', ARCHIVED: 'gray',
   SUSPENDED: 'red', DELETED: 'red', PAST_DUE: 'orange', CANCELED: 'gray', INCOMPLETE: 'orange', TRIALING: 'blue',
   PAID: 'green', PARTIAL: 'orange', FAILED: 'red', EXPIRED: 'gray', REFUNDED: 'purple', PENDING_PAYMENT: 'orange',
 };
 
 const statusLabels: Record<string, string> = {
-  VERIFIED: 'Vérifié', PENDING: 'En attente', DRAFT: 'Brouillon', REJECTED: 'Refusé',
+  PENDING: 'En attente', DRAFT: 'Brouillon',
   ACTIVE: 'Actif', PENDING_APPROVAL: 'En attente de validation', ARCHIVED: 'Archivé',
   SUSPENDED: 'Suspendu', DELETED: 'Supprimé', PAST_DUE: 'Impayé (grâce)', CANCELED: 'Résilié',
   INCOMPLETE: 'Paiement en attente', TRIALING: 'Essai', PAID: 'Payé', PARTIAL: 'Partiel',

@@ -17,7 +17,7 @@ func TestRBACCoverage(t *testing.T) {
 	adm := e.adminAccount()
 	m := e.register("manager", nil)
 	c := e.register("client", nil)
-	_, slug := e.verifiedManager(adm.Token)
+	_, slug := e.readyManager()
 	p := e.register("professional", map[string]any{"establishment_slug": slug})
 	tokens := map[string]string{models.RoleAdmin: adm.Token, models.RoleManager: m.Token, models.RoleClient: c.Token, models.RoleProfessional: p.Token}
 
@@ -72,9 +72,8 @@ func TestRoleFieldIgnored(t *testing.T) {
 // Scenario 6: a manager cannot reach the resources of another establishment.
 func TestCrossEstablishmentIDOR(t *testing.T) {
 	e := newEnv(t)
-	adm := e.adminAccount()
-	a, _ := e.verifiedManager(adm.Token)
-	b, slugB := e.verifiedManager(adm.Token)
+	a, _ := e.readyManager()
+	b, slugB := e.readyManager()
 	_, idB := e.publishedProfile(b, slugB)
 	e.subscribeAndPay(b)
 	photos := e.get("/api/v1/manager/profiles/"+idB, b.Token).expect(200).JSON()["photos"].([]any)
@@ -124,8 +123,7 @@ func TestCrossEstablishmentIDOR(t *testing.T) {
 // Scenario 6b: a professional only reaches their own profile.
 func TestProfessionalIsolation(t *testing.T) {
 	e := newEnv(t)
-	adm := e.adminAccount()
-	m, slug := e.verifiedManager(adm.Token)
+	m, slug := e.readyManager()
 	p1, _ := e.publishedProfile(m, slug)
 	_, id2 := e.publishedProfile(m, slug)
 	photos := e.get("/api/v1/manager/profiles/"+id2, m.Token).expect(200).JSON()["photos"].([]any)
@@ -152,10 +150,9 @@ func strPtr(v any) *string {
 // Scenario 6c: professional registration lifecycle.
 func TestProfessionalRegistration(t *testing.T) {
 	e := newEnv(t)
-	adm := e.adminAccount()
-	m, slug := e.verifiedManager(adm.Token)
+	m, slug := e.readyManager()
 
-	// Unverified house is not selectable.
+	// A house without public name is not selectable (no verification step).
 	draft := e.register("manager", nil)
 	draftSlug := e.get("/api/v1/manager/establishment", draft.Token).expect(200).JSON()["slug"].(string)
 	e.post("/api/v1/auth/register/professional", "", map[string]any{"username": "pro_x1", "password": pwd, "accept_terms": true,

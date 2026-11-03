@@ -26,8 +26,6 @@ function EstablishmentInner({ est }: { est: PublicEstablishment }) {
     <Stack gap="6">
       <Stack gap="1">
         <Heading size="2xl">{est.display_name}</Heading>
-        <Text color="fg.muted">{est.legal_name}</Text>
-        <Text fontSize="sm">N° d’agrément : <strong>{est.approval_number}</strong></Text>
         {est.city && <Text fontSize="sm" color="fg.muted">{est.city.name}{est.region ? ` · ${est.region.name}` : ''}</Text>}
         {est.address && <Text fontSize="sm">{est.address}</Text>}
       </Stack>

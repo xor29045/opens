@@ -170,7 +170,7 @@ paths:
           $ref: '#/components/responses/429'
   /api/v1/auth/register/professional:
     post:
-      summary: Register a PROFESSIONAL attached to a VERIFIED house (profile PENDING_APPROVAL)
+      summary: Register a PROFESSIONAL attached to a house (profile PENDING_APPROVAL)
       tags:
       - auth
       operationId: post_auth_register_professional
@@ -878,7 +878,7 @@ paths:
         '429':
           $ref: '#/components/responses/429'
     put:
-      summary: Update the establishment (approval/legal/BCE change → PENDING)
+      summary: Update the establishment
       tags:
       - manager
       operationId: put_manager_establishment
@@ -958,35 +958,6 @@ paths:
           $ref: '#/components/responses/422'
         '429':
           $ref: '#/components/responses/429'
-  /api/v1/manager/establishment/submit:
-    post:
-      summary: Submit for verification (DRAFT/REJECTED → PENDING)
-      tags:
-      - manager
-      operationId: post_manager_establishment_submit
-      security:
-      - bearerAuth: []
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Establishment'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '409':
-          $ref: '#/components/responses/409'
   /api/v1/manager/publication-status:
     get:
       summary: 'Overview: checklist and state of every profile'
@@ -1303,7 +1274,7 @@ paths:
           $ref: '#/components/responses/409'
   /api/v1/manager/profiles/{profileId}/attestation:
     put:
-      summary: Attest age (≥ 18), employment contract and consent (RM-21)
+      summary: Attest age (≥ 18) and consent of the person (RM-21)
       tags:
       - manager
       operationId: put_manager_profiles_profileId_attestation
@@ -1329,13 +1300,13 @@ paths:
                 employment_reference:
                   type: string
                   maxLength: 100
+                  description: Optional internal reference
                 attested:
                   type: boolean
                   enum:
                   - true
               required:
               - birth_date
-              - employment_reference
               - attested
       responses:
         '200':
@@ -2405,7 +2376,7 @@ paths:
         '429':
           $ref: '#/components/responses/429'
     post:
-      summary: Subscribe (establishment VERIFIED) → invoice URL
+      summary: Subscribe → invoice URL
       tags:
       - billing
       operationId: post_billing_subscription
@@ -2889,11 +2860,6 @@ paths:
       parameters:
       - $ref: '#/components/parameters/page'
       - $ref: '#/components/parameters/page_size'
-      - name: verification_status
-        in: query
-        required: false
-        schema:
-          type: string
       - name: subscription_status
         in: query
         required: false
@@ -3915,257 +3881,6 @@ paths:
           $ref: '#/components/responses/422'
         '429':
           $ref: '#/components/responses/429'
-  /api/v1/admin/audit-logs:
-    get:
-      summary: Audit trail (cursor pagination)
-      tags:
-      - admin
-      operationId: get_admin_audit_logs
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: category
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: action
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: severity
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: actor_id
-        in: query
-        required: false
-        schema:
-          type: string
-          format: uuid
-      - name: target_type
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: target_id
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: from
-        in: query
-        required: false
-        schema:
-          type: string
-          format: date-time
-      - name: to
-        in: query
-        required: false
-        schema:
-          type: string
-          format: date-time
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          maximum: 200
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLog'
-                  next_cursor:
-                    type: string
-                    nullable: true
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/admin/audit-logs/export:
-    get:
-      summary: CSV export (audited, 10 000 rows max)
-      tags:
-      - admin
-      operationId: get_admin_audit_logs_export
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: category
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: action
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: severity
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: actor_id
-        in: query
-        required: false
-        schema:
-          type: string
-          format: uuid
-      - name: target_type
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: target_id
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: from
-        in: query
-        required: false
-        schema:
-          type: string
-          format: date-time
-      - name: to
-        in: query
-        required: false
-        schema:
-          type: string
-          format: date-time
-      responses:
-        '200':
-          description: CSV
-          content:
-            text/csv:
-              schema:
-                type: string
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/admin/security-events:
-    get:
-      summary: Security events
-      tags:
-      - admin
-      operationId: get_admin_security_events
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: category
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: action
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: severity
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: actor_id
-        in: query
-        required: false
-        schema:
-          type: string
-          format: uuid
-      - name: target_type
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: target_id
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: from
-        in: query
-        required: false
-        schema:
-          type: string
-          format: date-time
-      - name: to
-        in: query
-        required: false
-        schema:
-          type: string
-          format: date-time
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          maximum: 200
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AuditLog'
-                  next_cursor:
-                    type: string
-                    nullable: true
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
   /api/v1/webhooks/nowpayments:
     post:
       summary: NOWPayments IPN
@@ -4204,6 +3919,124 @@ paths:
           $ref: '#/components/responses/429'
         '500':
           description: Internal error (the provider retries)
+  /api/v1/client/discover:
+    get:
+      summary: Next profiles to like or pass (published, not yet rated, random order)
+      tags:
+      - client
+      operationId: get_client_discover
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 15
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - remaining
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DiscoverCard'
+                  remaining:
+                    type: integer
+                    description: Profiles left to rate in total
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/client/dislikes/{profileId}:
+    put:
+      summary: Pass on a profile (hidden from the deck, removed from favorites)
+      tags:
+      - client
+      operationId: put_client_dislikes_profileId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '429':
+          $ref: '#/components/responses/429'
+    delete:
+      summary: Undo a pass (the profile comes back in the deck)
+      tags:
+      - client
+      operationId: delete_client_dislikes_profileId
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: profileId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: No Content
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/client/dislikes:
+    delete:
+      summary: Bring every passed profile back in the deck
+      tags:
+      - client
+      operationId: delete_client_dislikes
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - restored
+                properties:
+                  restored:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '429':
+          $ref: '#/components/responses/429'
 components:
   securitySchemes:
     bearerAuth:
@@ -4418,13 +4251,10 @@ components:
           type: string
         display_name:
           type: string
-        verification_status:
-          type: string
       required:
       - id
       - slug
       - display_name
-      - verification_status
     ProfileRef:
       type: object
       properties:
@@ -4686,12 +4516,6 @@ components:
           type: string
         legal_name:
           type: string
-        company_number:
-          type: string
-          nullable: true
-        approval_number:
-          type: string
-          nullable: true
         description:
           type: string
         opening_hours:
@@ -4709,24 +4533,6 @@ components:
           nullable: true
         address_public:
           type: boolean
-        verification_status:
-          type: string
-          enum:
-          - DRAFT
-          - PENDING
-          - VERIFIED
-          - REJECTED
-        verification_note:
-          type: string
-          nullable: true
-        submitted_at:
-          type: string
-          format: date-time
-          nullable: true
-        verified_at:
-          type: string
-          format: date-time
-          nullable: true
         is_hidden:
           type: boolean
         hidden_reason:
@@ -4747,18 +4553,12 @@ components:
       - slug
       - display_name
       - legal_name
-      - company_number
-      - approval_number
       - description
       - opening_hours
       - region
       - city
       - address
       - address_public
-      - verification_status
-      - verification_note
-      - submitted_at
-      - verified_at
       - is_hidden
       - hidden_reason
       - contacts
@@ -4773,12 +4573,6 @@ components:
         legal_name:
           type: string
           maxLength: 160
-        company_number:
-          type: string
-          description: Belgian enterprise number (BCE), checksum validated
-        approval_number:
-          type: string
-          description: Approval number (loi du 3 mai 2024)
         description:
           type: string
           maxLength: 5000
@@ -4884,7 +4678,6 @@ components:
             type: string
             enum:
             - MANAGER_ACCOUNT_INACTIVE
-            - ESTABLISHMENT_NOT_VERIFIED
             - ESTABLISHMENT_HIDDEN
             - ESTABLISHMENT_SUBSCRIPTION_INACTIVE
             - PENDING_MANAGER_APPROVAL
@@ -5217,10 +5010,6 @@ components:
           type: string
         display_name:
           type: string
-        legal_name:
-          type: string
-        approval_number:
-          type: string
         city:
           allOf:
           - $ref: '#/components/schemas/Place'
@@ -5232,8 +5021,6 @@ components:
       required:
       - slug
       - display_name
-      - legal_name
-      - approval_number
       - city
       - region
     ProfileCard:
@@ -5768,9 +5555,6 @@ components:
       properties:
         establishment:
           $ref: '#/components/schemas/EstablishmentRef'
-        verification_note:
-          type: string
-          nullable: true
         checklist:
           type: array
           items:
@@ -5801,7 +5585,6 @@ components:
             $ref: '#/components/schemas/ProfileSummary'
       required:
       - establishment
-      - verification_note
       - checklist
       - blocking_reasons
       - subscription
@@ -5906,12 +5689,6 @@ components:
     AdminStats:
       type: object
       properties:
-        establishments_by_verification_status:
-          type: object
-          additionalProperties:
-            type: integer
-        pending_verifications:
-          type: integer
         published_profiles:
           type: integer
         subscriptions_by_status:
@@ -5948,8 +5725,6 @@ components:
             - status
             - current_period_end
       required:
-      - establishments_by_verification_status
-      - pending_verifications
       - published_profiles
       - subscriptions_by_status
       - mrr_cents
@@ -6259,3 +6034,52 @@ components:
       - page_size
       - total
       - total_pages
+    DiscoverCard:
+      type: object
+      required:
+      - id
+      - slug
+      - display_name
+      - headline
+      - age
+      - price_from_cents
+      - languages
+      - photos
+      - categories
+      - establishment_name
+      - city
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        display_name:
+          type: string
+        headline:
+          type: string
+        age:
+          type: integer
+          nullable: true
+        price_from_cents:
+          type: integer
+          format: int64
+          nullable: true
+        languages:
+          type: array
+          items:
+            type: string
+        photos:
+          type: array
+          items:
+            type: string
+          description: Up to 6 photo URLs, primary first
+        categories:
+          type: array
+          items:
+            type: string
+        establishment_name:
+          type: string
+        city:
+          type: string
+          nullable: true

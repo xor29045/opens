@@ -5,8 +5,7 @@ import Providers from '../../components/Providers';
 import Pagination from '../../components/Pagination';
 import { Section, StatusBadge } from '../../components/ui';
 import { QueryBlock, DataTable, ActionDialog, type Column } from '../dashboard/shared';
-import { api, apiBlob } from '../../lib/api/client';
-import { describeError } from '../../lib/api/problem';
+import { api } from '../../lib/api/client';
 import { dateFr, dateTimeFr, eur, reasonLabels } from '../../lib/format';
 import type { components } from '../../lib/api/schema';
 
@@ -46,12 +45,10 @@ function DashboardInner() {
     <QueryBlock isPending={q.isPending} isError={q.isError} error={q.error} onRetry={() => q.refetch()}>
       {q.data && (
         <Stack gap="6">
-          <Grid templateColumns={{ base: '1fr 1fr', md: 'repeat(4, 1fr)' }} gap="4">
+          <Grid templateColumns={{ base: '1fr 1fr', md: 'repeat(3, 1fr)' }} gap="4">
             {[
-              ['Établissements à vérifier', q.data.pending_verifications, '/admin/etablissements?verification_status=PENDING'],
               ['Profils publiés', q.data.published_profiles, '/admin/profils'],
               ['MRR', eur(q.data.mrr_cents), '/admin/abonnements'],
-              ['Événements de sécurité (24 h)', q.data.security_events_24h, '/admin/audit?category=SECURITY'],
             ].map(([label, value, href]) => (
               <Stat.Root key={String(label)} borderWidth="1px" borderColor="border" borderRadius="lg" p="4">
                 <Stat.Label><a href={String(href)}>{label}</a></Stat.Label>
@@ -59,22 +56,15 @@ function DashboardInner() {
               </Stat.Root>
             ))}
           </Grid>
-          <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap="6">
-            <Section title="Établissements par statut">
-              {Object.entries(q.data.establishments_by_verification_status).map(([k, v]) => (
-                <HStack key={k} justify="space-between"><StatusBadge value={k} /><Text>{v}</Text></HStack>
-              ))}
-            </Section>
-            <Section title="Abonnements par statut">
-              {Object.entries(q.data.subscriptions_by_status).map(([k, v]) => (
-                <HStack key={k} justify="space-between"><StatusBadge value={k} /><Text>{v}</Text></HStack>
-              ))}
-            </Section>
-          </Grid>
+          <Section title="Abonnements par statut">
+            {Object.entries(q.data.subscriptions_by_status ?? {}).map(([k, v]) => (
+              <HStack key={k} justify="space-between"><StatusBadge value={k} /><Text>{v}</Text></HStack>
+            ))}
+          </Section>
           <Section title="Échéances des 7 prochains jours">
             <Text fontSize="sm" color="fg.muted" mb="3">Sans e-mail ni prélèvement : prévenir l’établissement par téléphone si nécessaire.</Text>
             <DataTable
-              rows={q.data.upcoming_due.map((d) => ({ ...d, id: d.subscription_id }))}
+              rows={(q.data.upcoming_due ?? []).map((d) => ({ ...d, id: d.subscription_id }))}
               empty="Aucune échéance proche." caption="Échéances proches"
               columns={[
                 { key: 'name', header: 'Établissement', cell: (d) => d.establishment_name },
@@ -95,7 +85,7 @@ function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void })
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'establishment', id], queryFn: ({ signal }) => api<{
     establishment: S['Establishment']; manager: S['User']; profiles: S['AdminProfile'][]; subscription: S['Subscription'] | null;
-    blocking_reasons: string[]; history: S['AuditLog'][];
+    blocking_reasons: string[];
   }>(`/admin/establishments/${id}`, { signal }) });
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin'] });
   const post = (path: string, body: unknown) => api(`/admin/establishments/${id}${path}`, { method: 'POST', body }).then(refresh);
@@ -107,31 +97,19 @@ function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void })
         return (
           <Stack gap="6">
             <Button alignSelf="flex-start" size="sm" variant="ghost" onClick={onBack}>← Retour</Button>
-            <Section title={e.display_name || '(sans nom)'} action={<StatusBadge value={e.verification_status} />}>
+            <Section title={e.display_name || '(sans nom)'} action={e.is_hidden ? <Badge colorPalette="red">Masqué</Badge> : undefined}>
               <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap="2" fontSize="sm">
                 <Text>Raison sociale : {e.legal_name || '—'}</Text>
-                <Text>BCE : {e.company_number ?? '—'}</Text>
-                <Text>Agrément : {e.approval_number ?? '—'}</Text>
                 <Text>Gérant : {q.data.manager.username} ({q.data.manager.status})</Text>
                 <Text>Ville : {e.city?.name ?? '—'}</Text>
-                <Text>Téléphone de contrôle : {verif ? <Code>{verif.value}</Code> : '—'}</Text>
-                <Text>Soumis le : {dateFr(e.submitted_at)}</Text>
+                <Text>Numéro pour la plateforme : {verif ? <Code>{verif.value}</Code> : '—'}</Text>
+                <Text>Créé le : {dateFr(e.created_at)}</Text>
                 <Text>Abonnement : {q.data.subscription ? <StatusBadge value={q.data.subscription.status} /> : 'aucun'}</Text>
               </Grid>
-              {e.verification_note && <Text mt="2" fontSize="sm">Note : {e.verification_note}</Text>}
               {q.data.blocking_reasons.length > 0 && (
                 <Text mt="2" fontSize="sm" color="fg.muted">Bloquants : {q.data.blocking_reasons.map((r) => reasonLabels[r] ?? r).join(' · ')}</Text>
               )}
               <HStack mt="4" gap="2" wrap="wrap">
-                {e.verification_status === 'PENDING' && (
-                  <>
-                    <ActionDialog trigger="Approuver" title="Approuver l’établissement ?" confirmLabel="Approuver"
-                      description="Confirme avoir contrôlé le numéro BCE et le numéro d’agrément (registre ou document fourni)."
-                      onConfirm={() => post('/verify', {})} />
-                    <ActionDialog trigger="Refuser" title="Refuser la vérification ?" withReason danger confirmLabel="Refuser"
-                      description="Le gérant verra le motif et pourra corriger sa fiche." onConfirm={(reason) => post('/reject', { reason })} />
-                  </>
-                )}
                 {e.is_hidden ? (
                   <ActionDialog trigger="Réafficher" title="Réafficher l’établissement ?" confirmLabel="Réafficher"
                     description="Ses profils pourront de nouveau être publiés." onConfirm={() => post('/unhide', {})} />
@@ -149,9 +127,6 @@ function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void })
                 { key: 'att', header: 'Attesté', cell: (p) => (p.attested ? 'Oui' : 'Non') },
               ]} />
             </Section>
-            <Section title="Historique">
-              <AuditTable rows={q.data.history} />
-            </Section>
           </Stack>
         );
       })()}
@@ -160,19 +135,16 @@ function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void })
 }
 
 function EstablishmentsInner() {
-  const initial = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('verification_status') ?? '' : '';
-  const [status, setStatus] = useState(initial);
   const [sub, setSub] = useState('');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string | null>(null);
-  const q = useList<S['AdminEstablishmentRow']>('establishments', '/admin/establishments', { verification_status: status, subscription_status: sub, q: query }, page);
+  const q = useList<S['AdminEstablishmentRow']>('establishments', '/admin/establishments', { subscription_status: sub, q: query }, page);
   if (selected) return <EstablishmentDetail id={selected} onBack={() => setSelected(null)} />;
   const columns: Column<S['AdminEstablishmentRow']>[] = [
     { key: 'name', header: 'Établissement', cell: (e) => <Button variant="plain" size="sm" p="0" onClick={() => setSelected(e.id)}>{e.display_name || '(sans nom)'}</Button> },
-    { key: 'legal', header: 'Raison sociale / BCE', cell: (e) => <Text fontSize="sm">{e.legal_name}<br />{e.company_number}</Text> },
-    { key: 'agr', header: 'Agrément', cell: (e) => e.approval_number ?? '—' },
-    { key: 'verif', header: 'Vérification', cell: (e) => <StatusBadge value={e.verification_status} /> },
+    { key: 'legal', header: 'Raison sociale', cell: (e) => e.legal_name || '—' },
+    { key: 'manager', header: 'Gérant', cell: (e) => `${e.manager_username} (${e.manager_status === 'ACTIVE' ? 'actif' : 'suspendu'})` },
     { key: 'sub', header: 'Abonnement', cell: (e) => (e.subscription_status ? <StatusBadge value={e.subscription_status} /> : '—') },
     { key: 'profiles', header: 'Profils', cell: (e) => `${e.published_count}/${e.profiles_count}` },
     { key: 'hidden', header: '', cell: (e) => (e.is_hidden ? <Badge colorPalette="red">Masqué</Badge> : null) },
@@ -180,11 +152,9 @@ function EstablishmentsInner() {
   return (
     <Section title="Établissements">
       <HStack gap="4" mb="4" wrap="wrap" align="flex-end">
-        <Select label="Vérification" value={status} onChange={(v) => { setStatus(v); setPage(1); }}
-          options={[['', 'Tous'], ['PENDING', 'À vérifier'], ['VERIFIED', 'Vérifiés'], ['REJECTED', 'Refusés'], ['DRAFT', 'Brouillons']]} />
         <Select label="Abonnement" value={sub} onChange={(v) => { setSub(v); setPage(1); }}
           options={[['', 'Tous'], ['ACTIVE', 'Actif'], ['PAST_DUE', 'Impayé'], ['INCOMPLETE', 'Paiement en attente'], ['CANCELED', 'Résilié'], ['NONE', 'Aucun']]} />
-        <Field.Root w="64"><Field.Label>Recherche</Field.Label><Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Nom, BCE, agrément, gérant" /></Field.Root>
+        <Field.Root w="64"><Field.Label>Recherche</Field.Label><Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} placeholder="Nom, raison sociale, gérant" /></Field.Root>
       </HStack>
       <QueryBlock isPending={q.isPending} isError={q.isError} error={q.error} onRetry={() => q.refetch()}>
         {q.data && <><DataTable columns={columns} rows={q.data.items} empty="Aucun établissement." caption="Établissements" />
@@ -259,7 +229,7 @@ function UsersInner() {
         )}
         {u.role === 'MANAGER' && u.status === 'ACTIVE' && (
           <ActionDialog trigger="Mot de passe" title="Réinitialiser le mot de passe du gérant ?" withReason confirmLabel="Générer"
-            description="Uniquement après rappel au numéro de contrôle de l’établissement (procédure RM-07)."
+            description="Un mot de passe temporaire est généré ; le gérant devra le changer à sa prochaine connexion."
             onConfirm={async (reason) => {
               const r = await api<{ temporary_password: string }>(`/admin/users/${u.id}/password-reset`, { method: 'POST', body: { reason } });
               setTemp({ user: u.username, password: r.temporary_password });
@@ -277,7 +247,7 @@ function UsersInner() {
     <Section title="Utilisateurs">
       {temp && (
         <Stack mb="4" p="3" borderWidth="1px" borderColor="warning" borderRadius="md" role="status">
-          <Text>Mot de passe temporaire de <strong>{temp.user}</strong> (affiché une seule fois, à communiquer par le canal vérifié) :</Text>
+          <Text>Mot de passe temporaire de <strong>{temp.user}</strong> (affiché une seule fois, à transmettre au gérant) :</Text>
           <Code p="2" userSelect="all">{temp.password}</Code>
           <Button size="xs" alignSelf="flex-start" onClick={() => setTemp(null)}>Masquer</Button>
         </Stack>
@@ -343,82 +313,8 @@ function BillingInner() {
   );
 }
 
-// ---------------------------------------------------------------- audit
-
-function AuditTable({ rows }: { rows: S['AuditLog'][] }) {
-  return (
-    <DataTable rows={rows} empty="Aucun événement." caption="Journal d’audit" columns={[
-      { key: 'date', header: 'Date', cell: (l) => dateTimeFr(l.occurred_at) },
-      { key: 'action', header: 'Action', cell: (l) => <Code fontSize="xs">{l.action}</Code> },
-      { key: 'sev', header: 'Gravité', cell: (l) => <Badge colorPalette={l.severity === 'CRITICAL' ? 'red' : l.severity === 'WARN' ? 'orange' : 'gray'}>{l.severity}</Badge> },
-      { key: 'actor', header: 'Acteur', cell: (l) => <Text fontSize="xs">{l.actor_role ?? '—'}</Text> },
-      { key: 'target', header: 'Cible', cell: (l) => <Text fontSize="xs">{l.target_type ?? ''} {l.target_id?.slice(0, 8) ?? ''}</Text> },
-      { key: 'meta', header: 'Détails', cell: (l) => <Text fontSize="xs" lineClamp={2}>{JSON.stringify(l.metadata)}</Text> },
-    ]} />
-  );
-}
-
-function AuditInner() {
-  const initial = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('category') ?? '' : '';
-  const [category, setCategory] = useState(initial);
-  const [severity, setSeverity] = useState('');
-  const [action, setAction] = useState('');
-  const [cursors, setCursors] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const filters = new URLSearchParams();
-  if (category) filters.set('category', category);
-  if (severity) filters.set('severity', severity);
-  if (action) filters.set('action', action);
-  const cursor = cursors[cursors.length - 1];
-  const qs = new URLSearchParams(filters);
-  if (cursor) qs.set('cursor', cursor);
-  const q = useQuery({
-    queryKey: ['admin', 'audit', qs.toString()],
-    queryFn: ({ signal }) => api<{ items: S['AuditLog'][]; next_cursor: string | null }>(`/admin/audit-logs?${qs}`, { signal }),
-    placeholderData: keepPreviousData,
-  });
-  const exportCsv = async () => {
-    setError(null);
-    try {
-      const blob = await apiBlob(`/admin/audit-logs/export?${filters}`);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'audit.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setError(describeError(e));
-    }
-  };
-  const reset = (fn: () => void) => { fn(); setCursors([]); };
-  return (
-    <Section title="Journal d’audit" action={<Button size="xs" variant="outline" onClick={exportCsv}>Exporter en CSV</Button>}>
-      <HStack gap="4" mb="4" wrap="wrap" align="flex-end">
-        <Select label="Catégorie" value={category} onChange={(v) => reset(() => setCategory(v))}
-          options={[['', 'Toutes'], ['SECURITY', 'Sécurité'], ['ADMIN', 'Admin'], ['AUTH', 'Authentification'], ['BILLING', 'Facturation'], ['ESTABLISHMENT', 'Établissements'], ['PROFILE', 'Profils']]} />
-        <Select label="Gravité" value={severity} onChange={(v) => reset(() => setSeverity(v))} options={[['', 'Toutes'], ['INFO', 'Info'], ['WARN', 'Avertissement'], ['CRITICAL', 'Critique']]} />
-        <Field.Root w="64"><Field.Label>Action exacte</Field.Label><Input value={action} onChange={(e) => reset(() => setAction(e.target.value.trim()))} placeholder="auth.login.failed" /></Field.Root>
-      </HStack>
-      <QueryBlock isPending={q.isPending} isError={q.isError} error={q.error} onRetry={() => q.refetch()}>
-        {q.data && (
-          <>
-            <AuditTable rows={q.data.items} />
-            <HStack justify="center" mt="4" gap="3">
-              <Button size="sm" variant="outline" disabled={cursors.length === 0} onClick={() => setCursors(cursors.slice(0, -1))}>Plus récents</Button>
-              <Button size="sm" variant="outline" disabled={!q.data.next_cursor} onClick={() => q.data.next_cursor && setCursors([...cursors, q.data.next_cursor])}>Plus anciens</Button>
-            </HStack>
-          </>
-        )}
-      </QueryBlock>
-      {error && <Text color="danger" role="alert">{error}</Text>}
-    </Section>
-  );
-}
-
 export const AdminDashboard = () => <Wrap><DashboardInner /></Wrap>;
 export const AdminEstablishments = () => <Wrap><EstablishmentsInner /></Wrap>;
 export const AdminProfiles = () => <Wrap><ProfilesInner /></Wrap>;
 export const AdminUsers = () => <Wrap><UsersInner /></Wrap>;
 export const AdminBilling = () => <Wrap><BillingInner /></Wrap>;
-export const AdminAudit = () => <Wrap><AuditInner /></Wrap>;

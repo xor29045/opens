@@ -120,7 +120,7 @@ function SubscriptionInner() {
               </Stack>
             ) : (
               <Stack gap="3">
-                <Text>Aucun abonnement. L’établissement doit être vérifié avant de souscrire.</Text>
+                <Text>Aucun abonnement. Souscris pour publier les profils de ta maison.</Text>
                 <QueryBlock isPending={plans.isPending} isError={plans.isError} error={plans.error} onRetry={() => plans.refetch()}>
                   <HStack align="flex-end">
                     <Field.Root w="72">

@@ -192,7 +192,6 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	mh(http.MethodGet, "/establishment", h.GetEstablishment)
 	mh(http.MethodPut, "/establishment", h.UpdateEstablishment)
 	mh(http.MethodPut, "/establishment/contacts", h.ReplaceEstablishmentContacts)
-	mh(http.MethodPost, "/establishment/submit", h.SubmitEstablishment)
 	mh(http.MethodGet, "/publication-status", h.ManagerOverview)
 	mh(http.MethodGet, "/stats", h.ManagerStats)
 	mh(http.MethodGet, "/pending", h.PendingProfiles)
@@ -261,6 +260,10 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	ch(http.MethodGet, "/favorites", h.Favorites)
 	ch(http.MethodPut, "/favorites/:profileId", h.AddFavorite)
 	ch(http.MethodDelete, "/favorites/:profileId", h.RemoveFavorite)
+	ch(http.MethodGet, "/discover", h.Discover)
+	ch(http.MethodPut, "/dislikes/:profileId", h.Dislike)
+	ch(http.MethodDelete, "/dislikes/:profileId", h.Undislike)
+	ch(http.MethodDelete, "/dislikes", h.ClearDislikes)
 
 	// ---- administration
 	ad := api.Group("/admin", middlewares.AdminIPAllowlist(d.Cfg.AdminAllowedCIDRs), auth.RequireAuth(), middlewares.RequireRole(models.RoleAdmin),
@@ -295,9 +298,6 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	adh(http.MethodPost, "/regions", h.AdminCreateRegion)
 	adh(http.MethodPut, "/regions/:id", h.AdminUpdateRegion)
 	adh(http.MethodDelete, "/regions/:id", h.AdminDeleteRegion)
-	adh(http.MethodGet, "/audit-logs", h.AdminAuditLogs)
-	adh(http.MethodGet, "/audit-logs/export", h.AdminAuditExport)
-	adh(http.MethodGet, "/security-events", h.AdminSecurityEvents)
 
 	// ---- webhooks
 	wh := api.Group("/webhooks")

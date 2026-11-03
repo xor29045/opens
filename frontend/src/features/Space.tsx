@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import Providers from '../components/Providers';
 import Guard from '../components/Guard';
+import ErrorBoundary from '../components/ErrorBoundary';
 import AppShell from '../components/AppShell';
 import type { Role } from '../lib/auth/session';
 import ManagerOverview from './manager/ManagerOverview';
@@ -10,8 +11,9 @@ import { Subscription, Invoices, ManagerStats } from './manager/Billing';
 import ProfileEditor from './profile/ProfileEditor';
 import { ProStatus, ProPreview } from './pro/ProPages';
 import { ClientFavorites, ClientAccount } from './client/ClientPages';
+import SwipeDeck from './client/SwipeDeck';
 import Security from './account/Security';
-import { AdminDashboard, AdminEstablishments, AdminProfiles, AdminUsers, AdminBilling, AdminAudit } from './admin/AdminPages';
+import { AdminDashboard, AdminEstablishments, AdminProfiles, AdminUsers, AdminBilling } from './admin/AdminPages';
 
 /**
  * One `client:only` island per private page (§6.1): providers, client-side
@@ -31,6 +33,7 @@ const pages: Record<string, { role: Role; title: string; component: ComponentTyp
   'pro.status': { role: 'PROFESSIONAL', title: 'Statut de publication', component: ProStatus },
   'pro.preview': { role: 'PROFESSIONAL', title: 'Aperçu', component: ProPreview },
   'pro.security': { role: 'PROFESSIONAL', title: 'Sécurité du compte', component: () => <Security /> },
+  'client.discover': { role: 'CLIENT', title: 'Découvrir', component: SwipeDeck },
   'client.favorites': { role: 'CLIENT', title: 'Favoris', component: ClientFavorites },
   'client.account': { role: 'CLIENT', title: 'Mon compte', component: ClientAccount },
   'client.security': { role: 'CLIENT', title: 'Sécurité du compte', component: () => <Security /> },
@@ -39,7 +42,6 @@ const pages: Record<string, { role: Role; title: string; component: ComponentTyp
   'admin.profiles': { role: 'ADMIN', title: 'Profils', component: AdminProfiles },
   'admin.users': { role: 'ADMIN', title: 'Utilisateurs', component: AdminUsers },
   'admin.billing': { role: 'ADMIN', title: 'Abonnements et paiements', component: AdminBilling },
-  'admin.audit': { role: 'ADMIN', title: 'Audit', component: AdminAudit },
   'admin.security': { role: 'ADMIN', title: 'Sessions', component: () => <Security withCodes={false} /> },
 };
 
@@ -53,7 +55,9 @@ export default function Space({ page, id }: { page: string; id?: string }) {
     <Providers>
       <Guard role={def.role}>
         <AppShell role={def.role} title={def.title}>
-          <Content id={id} />
+          <ErrorBoundary>
+            <Content id={id} />
+          </ErrorBoundary>
         </AppShell>
       </Guard>
     </Providers>

@@ -60,12 +60,10 @@ type PublicPlace struct {
 }
 
 type PublicEstablishmentRef struct {
-	Slug           string       `json:"slug"`
-	DisplayName    string       `json:"display_name"`
-	LegalName      string       `json:"legal_name,omitempty"`
-	ApprovalNumber string       `json:"approval_number,omitempty"`
-	City           *PublicPlace `json:"city"`
-	Region         *PublicPlace `json:"region"`
+	Slug        string       `json:"slug"`
+	DisplayName string       `json:"display_name"`
+	City        *PublicPlace `json:"city"`
+	Region      *PublicPlace `json:"region"`
 }
 
 type ProfileCard struct {
@@ -231,7 +229,7 @@ func (s *CatalogService) build(ctx context.Context, p *models.Profile, mode view
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
-	ref, err := s.establishmentRef(ctx, e, true)
+	ref, err := s.establishmentRef(ctx, e)
 	if err != nil {
 		return nil, err
 	}
@@ -322,12 +320,8 @@ func (s *CatalogService) filterContacts(ctx context.Context, cs []genericContact
 	return out, restricted, rateLimited
 }
 
-func (s *CatalogService) establishmentRef(ctx context.Context, e *models.Establishment, legal bool) (*PublicEstablishmentRef, error) {
+func (s *CatalogService) establishmentRef(ctx context.Context, e *models.Establishment) (*PublicEstablishmentRef, error) {
 	ref := &PublicEstablishmentRef{Slug: e.Slug, DisplayName: e.DisplayName}
-	if legal {
-		ref.LegalName = e.LegalName
-		ref.ApprovalNumber = deref(e.ApprovalNumber)
-	}
 	regs, err := s.Repos.Taxonomy.RegionsByIDs(ctx, compactIDs(e.RegionID, e.CityID))
 	if err != nil {
 		return nil, apperr.Internal(err)
@@ -371,7 +365,7 @@ func (s *CatalogService) EstablishmentBySlug(ctx context.Context, slug string) (
 	if len(st.Reasons()) > 0 {
 		return nil, apperr.NotFound("establishment")
 	}
-	ref, err := s.establishmentRef(ctx, e, true)
+	ref, err := s.establishmentRef(ctx, e)
 	if err != nil {
 		return nil, err
 	}

@@ -15,6 +15,6 @@ if (!res.ok) return new Response(null, { status: 503 });
 const est = (await res.json()) as PublicEstablishment;
 Astro.response.headers.set('Referrer-Policy', 'no-referrer');
 ---
-<Public title={est.display_name} description={`${est.display_name} — établissement agréé ${est.approval_number}`}>
+<Public title={est.display_name} description={`${est.display_name} — maison et professionnel·les`}>
   <EstablishmentView establishment={est} client:load />
 </Public>

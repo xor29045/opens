@@ -273,3 +273,14 @@ func (r *ProfileRepo) ReplaceCategories(ctx context.Context, profileID uuid.UUID
 	}
 	return r.db(ctx).Create(&rows).Error
 }
+
+// ActivateAttestedDrafts puts in service every attested DRAFT profile of an
+// establishment (used when its subscription gets paid). Pending
+// registrations (not attested) and archived profiles are left untouched.
+func (r *ProfileRepo) ActivateAttestedDrafts(ctx context.Context, establishmentID uuid.UUID, at time.Time) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := r.db(ctx).Raw(`UPDATE professional_profiles SET status = 'ACTIVE', updated_at = ?
+		WHERE establishment_id = ? AND status = 'DRAFT' AND attested_at IS NOT NULL AND deleted_at IS NULL
+		RETURNING id`, at, establishmentID).Scan(&ids).Error
+	return ids, err
+}

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -105,4 +106,49 @@ func (h *Handler) ClientRename(c *gin.Context) {
 		return
 	}
 	ok(c, dto.NewUser(u))
+}
+
+// ---- "Découvrir" deck (like = favorite, dislike = hidden from the deck)
+
+func (h *Handler) Discover(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	res, err := h.Svc.Clients.Discover(c.Request.Context(), actor(c), limit)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	ok(c, res)
+}
+
+func (h *Handler) Dislike(c *gin.Context) {
+	id, valid := uuidParam(c, "profileId")
+	if !valid {
+		return
+	}
+	if err := h.Svc.Clients.Dislike(c.Request.Context(), actor(c), id); err != nil {
+		fail(c, err)
+		return
+	}
+	noContent(c)
+}
+
+func (h *Handler) Undislike(c *gin.Context) {
+	id, valid := uuidParam(c, "profileId")
+	if !valid {
+		return
+	}
+	if err := h.Svc.Clients.Undislike(c.Request.Context(), actor(c), id); err != nil {
+		fail(c, err)
+		return
+	}
+	noContent(c)
+}
+
+func (h *Handler) ClearDislikes(c *gin.Context) {
+	n, err := h.Svc.Clients.ClearDislikes(c.Request.Context(), actor(c))
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	ok(c, gin.H{"restored": n})
 }

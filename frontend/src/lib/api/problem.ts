@@ -52,8 +52,6 @@ const codeMessages: Record<string, string> = {
   invalid_phone: 'Numéro de téléphone invalide (format international, ex. +32 470 12 34 56).',
   invalid_url: 'Lien invalide (https uniquement).',
   invalid_url_domain: 'Le lien doit pointer vers le réseau social correspondant.',
-  invalid_company_number: 'Numéro BCE invalide (10 chiffres, clé de contrôle).',
-  invalid_approval_number: 'Numéro d’agrément invalide.',
   invalid_opening_hours: 'Horaires invalides.',
   too_long: 'Texte trop long.',
   invalid_characters: 'Caractères non autorisés.',
@@ -71,8 +69,8 @@ const codeMessages: Record<string, string> = {
   establishment_not_selectable: 'Cette maison n’accepte pas d’inscription pour le moment.',
   establishment_pending_quota: 'Cette maison a trop d’inscriptions en attente.',
   attestation_required: 'Atteste le profil avant de l’activer.',
+  subscription_required: 'Souscris un abonnement pour mettre tes professionnel·les en service.',
   already_subscribed: 'Un abonnement existe déjà pour cet établissement.',
-  establishment_not_verified: 'L’établissement doit être vérifié avant de souscrire.',
   payment_provider_unavailable: 'Le prestataire de paiement est indisponible, réessaie plus tard.',
   username_taken: 'Ce pseudo est déjà utilisé.',
 };

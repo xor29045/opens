@@ -9,12 +9,22 @@ export type SessionStatus = 'loading' | 'authenticated' | 'anonymous';
  * Resolves the session of an island: an in-memory token if present, otherwise
  * one refresh with the HttpOnly cookie. Nothing is stored in web storage.
  */
+/** Set by the layout: false when the browser has no refresh cookie at all. */
+function serverSaysSessionMayExist(): boolean {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="os-session"]');
+  return meta?.content !== '0';
+}
+
 export function useSession(): { status: SessionStatus; user: SessionUser | null } {
   const state = useStore(sessionAtom);
   const [resolved, setResolved] = useState(state.user !== null);
   useEffect(() => {
     let alive = true;
     if (state.user) {
+      setResolved(true);
+      return;
+    }
+    if (!serverSaysSessionMayExist()) {
       setResolved(true);
       return;
     }

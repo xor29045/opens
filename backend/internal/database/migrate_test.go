@@ -37,7 +37,7 @@ func TestMigrationsUpDownUp(t *testing.T) {
 		}
 	}
 	v, dirty, err := MigrateVersion(dsn)
-	if err != nil || dirty || v != 3 {
+	if err != nil || dirty || v != 4 {
 		t.Fatalf("version %d dirty=%v err=%v", v, dirty, err)
 	}
 }

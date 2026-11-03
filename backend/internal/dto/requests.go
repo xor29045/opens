@@ -67,16 +67,14 @@ type ContactsRequest struct {
 }
 
 type EstablishmentRequest struct {
-	DisplayName    string          `json:"display_name"`
-	LegalName      string          `json:"legal_name"`
-	CompanyNumber  string          `json:"company_number"`
-	ApprovalNumber string          `json:"approval_number"`
-	Description    string          `json:"description"`
-	OpeningHours   json.RawMessage `json:"opening_hours"`
-	RegionID       *uuid.UUID      `json:"region_id"`
-	CityID         *uuid.UUID      `json:"city_id"`
-	Address        *string         `json:"address"`
-	AddressPublic  bool            `json:"address_public"`
+	DisplayName   string          `json:"display_name"`
+	LegalName     string          `json:"legal_name"`
+	Description   string          `json:"description"`
+	OpeningHours  json.RawMessage `json:"opening_hours"`
+	RegionID      *uuid.UUID      `json:"region_id"`
+	CityID        *uuid.UUID      `json:"city_id"`
+	Address       *string         `json:"address"`
+	AddressPublic bool            `json:"address_public"`
 }
 
 type ProfileRequest struct {
@@ -123,10 +121,6 @@ type PhotoOrderRequest struct {
 
 type SubscribeRequest struct {
 	PlanCode string `json:"plan_code"`
-}
-
-type VerifyRequest struct {
-	Note string `json:"note"`
 }
 
 type ReconcileRequest struct {

@@ -80,16 +80,14 @@ func (s *EstablishmentService) Get(ctx context.Context, actor *rbac.Actor) (*Est
 }
 
 type EstablishmentInput struct {
-	DisplayName    string
-	LegalName      string
-	CompanyNumber  string
-	ApprovalNumber string
-	Description    string
-	OpeningHours   json.RawMessage
-	RegionID       *uuid.UUID
-	CityID         *uuid.UUID
-	Address        *string
-	AddressPublic  bool
+	DisplayName   string
+	LegalName     string
+	Description   string
+	OpeningHours  json.RawMessage
+	RegionID      *uuid.UUID
+	CityID        *uuid.UUID
+	Address       *string
+	AddressPublic bool
 }
 
 func (s *EstablishmentService) Update(ctx context.Context, actor *rbac.Actor, in EstablishmentInput) (*EstablishmentDetail, error) {
@@ -105,21 +103,6 @@ func (s *EstablishmentService) Update(ctx context.Context, actor *rbac.Actor, in
 	description, code := validators.PlainText(in.Description, 5000)
 	if code != "" {
 		c.Add("description", code)
-	}
-	var companyNumber, approvalNumber *string
-	if v := strings.TrimSpace(in.CompanyNumber); v != "" {
-		if n := validators.CompanyNumber(v); n == "" {
-			c.Add("company_number", "invalid_company_number")
-		} else {
-			companyNumber = &n
-		}
-	}
-	if v := strings.TrimSpace(in.ApprovalNumber); v != "" {
-		if n := validators.ApprovalNumber(v); n == "" {
-			c.Add("approval_number", "invalid_approval_number")
-		} else {
-			approvalNumber = &n
-		}
 	}
 	hours, code := validators.OpeningHours(in.OpeningHours)
 	if code != "" {
@@ -146,8 +129,7 @@ func (s *EstablishmentService) Update(ctx context.Context, actor *rbac.Actor, in
 		if err != nil {
 			return apperr.NotFound("establishment")
 		}
-		sensitive := e.LegalName != legalName || deref(e.CompanyNumber) != deref(companyNumber) || deref(e.ApprovalNumber) != deref(approvalNumber)
-		if e.DisplayName != displayName && e.VerifiedAt == nil && displayName != "" {
+		if e.DisplayName != displayName && displayName != "" {
 			slug, err := s.uniqueSlug(ctx, displayName, e.ID)
 			if err != nil {
 				return err
@@ -155,23 +137,14 @@ func (s *EstablishmentService) Update(ctx context.Context, actor *rbac.Actor, in
 			e.Slug = slug
 		}
 		e.DisplayName, e.LegalName, e.Description = displayName, legalName, description
-		e.CompanyNumber, e.ApprovalNumber = companyNumber, approvalNumber
 		e.OpeningHours = models.JSON(hours)
 		e.RegionID, e.CityID = in.RegionID, in.CityID
 		e.Address, e.AddressPublic = address, in.AddressPublic && address != nil
 		if err := s.Repos.Establishments.Save(ctx, e); err != nil {
-			if database.IsUniqueViolation(err) {
-				return apperr.Conflict("establishment_identifier_taken", "company number or approval number already registered")
-			}
 			return apperr.Internal(err)
 		}
 		s.Audit.Record(ctx, AuditEvent{Action: "establishment.updated", Category: models.AuditEstablishment,
-			TargetType: "establishment", TargetID: e.ID.String(), Metadata: map[string]any{"sensitive_change": sensitive}})
-		s.Audit.Record(ctx, AuditEvent{Action: "establishment.reverification_required", Category: models.AuditEstablishment,
-			Severity: models.SeverityWarn, TargetType: "establishment", TargetID: e.ID.String()})
-		if err := s.Publication.Recompute(ctx, e.ID); err != nil {
-			return err
-		}
+			TargetType: "establishment", TargetID: e.ID.String()})
 
 		out, err = s.detail(ctx, e)
 		return err
@@ -298,69 +271,10 @@ func (s *EstablishmentService) ReplaceContacts(ctx context.Context, actor *rbac.
 	return rows, err
 }
 
-// Submit sends the establishment for verification (DRAFT/REJECTED → PENDING, RM-11).
-func (s *EstablishmentService) Submit(ctx context.Context, actor *rbac.Actor) (*EstablishmentDetail, error) {
-	var out *EstablishmentDetail
-	err := s.tx(ctx, func(ctx context.Context) error {
-		e, err := s.Repos.Establishments.ByIDForUpdate(ctx, actor.EstablishmentID)
-		if err != nil {
-			return apperr.NotFound("establishment")
-		}
-
-		contacts, err := s.Repos.Establishments.Contacts(ctx, e.ID)
-		if err != nil {
-			return apperr.Internal(err)
-		}
-		if missing := missingForSubmission(e, contacts); len(missing) > 0 {
-			var c apperr.Collector
-			for _, f := range missing {
-				c.Add(f, "required")
-			}
-			return c.Err()
-		}
-		now := s.now()
-		e.SubmittedAt = &now
-		if err := s.Repos.Establishments.Save(ctx, e); err != nil {
-			return apperr.Internal(err)
-		}
-		s.Audit.Record(ctx, AuditEvent{Action: "establishment.submitted", Category: models.AuditEstablishment,
-			TargetType: "establishment", TargetID: e.ID.String()})
-		out, err = s.detail(ctx, e)
-		return err
-	})
-	return out, err
-}
-
-func missingForSubmission(e *models.Establishment, contacts []models.EstablishmentContact) []string {
-	var missing []string
-	if e.DisplayName == "" {
-		missing = append(missing, "display_name")
-	}
-	if e.LegalName == "" {
-		missing = append(missing, "legal_name")
-	}
-	if e.CompanyNumber == nil {
-		missing = append(missing, "company_number")
-	}
-	if e.ApprovalNumber == nil {
-		missing = append(missing, "approval_number")
-	}
-	if e.RegionID == nil {
-		missing = append(missing, "region_id")
-	}
-	if e.CityID == nil {
-		missing = append(missing, "city_id")
-	}
-	hasVerif := false
-	for _, c := range contacts {
-		if c.IsVerificationPhone {
-			hasVerif = true
-		}
-	}
-	if !hasVerif {
-		missing = append(missing, "verification_phone")
-	}
-	return missing
+// IsComplete reports whether the public page has the minimum information
+// (name and location) shown in the manager's checklist.
+func IsComplete(e *models.Establishment) bool {
+	return e.DisplayName != "" && e.RegionID != nil && e.CityID != nil
 }
 
 func itoa(i int) string { return strconv.Itoa(i) }

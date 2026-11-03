@@ -774,8 +774,8 @@ func (s *ProfileService) Attest(ctx context.Context, actor *rbac.Actor, id uuid.
 		c.Add("birth_date", "under_18")
 	}
 	ref, code := validators.PlainText(reference, 100)
-	if code != "" || ref == "" {
-		c.Add("employment_reference", firstNonEmpty(code, "required"))
+	if code != "" {
+		c.Add("employment_reference", code)
 	}
 	if err := c.Err(); err != nil {
 		return nil, err
@@ -787,8 +787,11 @@ func (s *ProfileService) Attest(ctx context.Context, actor *rbac.Actor, id uuid.
 			return err
 		}
 		now := s.now()
-		cols := map[string]any{"birth_date_attested": birthDate, "employment_reference": s.Encryptor.Encrypt(ref),
+		cols := map[string]any{"birth_date_attested": birthDate, "employment_reference": nil,
 			"attested_at": now, "attested_by": actor.UserID, "last_edited_by": actor.UserID}
+		if ref != "" {
+			cols["employment_reference"] = s.Encryptor.Encrypt(ref)
+		}
 		accepted := p.Status == models.ProfilePendingApproval
 		if accepted {
 			cols["status"] = models.ProfileDraft

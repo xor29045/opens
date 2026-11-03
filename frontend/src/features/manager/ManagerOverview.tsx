@@ -11,9 +11,7 @@ type Overview = components['schemas']['ManagerOverview'];
 type ProfileSummary = components['schemas']['ProfileSummary'];
 
 const checklistLabels: Record<string, string> = {
-  establishment_complete: 'Fiche complète (BCE, agrément, localisation, téléphone de contrôle)',
-  establishment_submitted: 'Fiche soumise pour vérification',
-  establishment_verified: 'Établissement vérifié par la plateforme',
+  establishment_complete: 'Fiche complète (nom et localisation)',
   subscription_active: 'Abonnement actif',
 };
 
@@ -39,10 +37,13 @@ function OverviewBody({ o }: { o: Overview }) {
   ];
   return (
     <Stack gap="6">
-      {o.establishment.verification_status === 'REJECTED' && (
-        <Alert.Root status="error"><Alert.Content>
-          <Alert.Title>Fiche refusée</Alert.Title>
-          <Alert.Description>{o.verification_note ?? 'Corrige la fiche puis soumets-la à nouveau.'}</Alert.Description>
+      {!o.entitled && o.subscription?.status !== 'PAST_DUE' && (
+        <Alert.Root status="info"><Alert.Content>
+          <Alert.Title>Aucun abonnement actif</Alert.Title>
+          <Alert.Description>
+            Tu peux préparer ta fiche et attester tes professionnel·les. Dès le paiement de l’abonnement, les profils attestés
+            sont mis en service automatiquement. <a href="/gerant/dashboard/abonnement">Souscrire</a>
+          </Alert.Description>
         </Alert.Content></Alert.Root>
       )}
       {o.subscription?.status === 'PAST_DUE' && (

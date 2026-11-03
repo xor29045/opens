@@ -31,7 +31,7 @@ function StatusInner() {
               </>
             )}
             <Text fontSize="sm" color="fg.muted">
-              L’attestation (âge et contrat), l’activation et l’archivage relèvent du gérant de ta maison.
+              L’attestation de ton âge, l’activation et l’archivage relèvent du gérant de ta maison.
             </Text>
           </Stack>
         </Section>

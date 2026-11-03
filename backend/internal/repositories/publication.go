@@ -10,7 +10,7 @@ import (
 // publicationSQL computes the RM-22 projection for the profiles of the given
 // establishments (or all when the scope is empty) in one statement:
 //  1. manager ACTIVE, linked professional account (if any) ACTIVE;
-//  2. establishment VERIFIED, not hidden, not deleted;
+//  2. establishment not hidden, not deleted;
 //  3. entitlement: ACTIVE/TRIALING/PAST_DUE and now < period end + grace,
 //     except for a cancellation that took effect at period end;
 //  4. profile ACTIVE and attested; 5. not hidden; 6. primary photo;
@@ -29,7 +29,7 @@ WITH entitled AS (
     SELECT p.id, p.establishment_id, p.published_at, p.attested_at, en.max_active_profiles,
         (    m.status = 'ACTIVE' AND m.deleted_at IS NULL
          AND (p.user_id IS NULL OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.user_id AND u.status = 'ACTIVE' AND u.deleted_at IS NULL))
-         AND e.verification_status = 'VERIFIED' AND NOT e.is_hidden AND e.deleted_at IS NULL
+         AND NOT e.is_hidden AND e.deleted_at IS NULL
          AND en.establishment_id IS NOT NULL
          AND p.status = 'ACTIVE' AND p.attested_at IS NOT NULL AND p.birth_date_attested IS NOT NULL
          AND NOT p.is_hidden AND p.deleted_at IS NULL

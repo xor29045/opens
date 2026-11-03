@@ -26,6 +26,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/pro/dashboard/compte', label: 'Sécurité' },
   ],
   CLIENT: [
+    { href: '/client/espace/decouvrir', label: 'Découvrir' },
     { href: '/client/espace', label: 'Favoris' },
     { href: '/client/espace/compte', label: 'Mon compte' },
   ],
@@ -35,7 +36,6 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/admin/profils', label: 'Profils' },
     { href: '/admin/utilisateurs', label: 'Utilisateurs' },
     { href: '/admin/abonnements', label: 'Abonnements' },
-    { href: '/admin/audit', label: 'Audit' },
     { href: '/admin/sessions', label: 'Sessions' },
   ],
 };

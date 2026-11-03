@@ -153,8 +153,6 @@ function ProfileInner({ profile: p }: { profile: PublicProfile }) {
           <Section title="Établissement">
             <Stack gap="1">
               <Link href={`/etablissements/${p.establishment.slug}`} fontWeight="semibold">{p.establishment.display_name}</Link>
-              <Text fontSize="sm" color="fg.muted">{p.establishment.legal_name}</Text>
-              <Text fontSize="sm" color="fg.muted">N° d’agrément : {p.establishment.approval_number}</Text>
               {p.establishment.city && <Text fontSize="sm" color="fg.muted">{p.establishment.city.name}</Text>}
             </Stack>
           </Section>

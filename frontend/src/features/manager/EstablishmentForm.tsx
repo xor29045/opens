@@ -4,12 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Button, Field, Grid, HStack, Input, NativeSelect, Stack, Text, Textarea, Checkbox } from '@chakra-ui/react';
 import Providers from '../../components/Providers';
-import { Section, StatusBadge } from '../../components/ui';
+import { Section } from '../../components/ui';
 import { QueryBlock } from '../dashboard/shared';
 import { api } from '../../lib/api/client';
 import { ApiError, describeError, messageFor } from '../../lib/api/problem';
 import { zodResolver } from '../../lib/forms';
-import { dateFr } from '../../lib/format';
 import { contactTypes, visibilities, profileLabels } from '../profile/profileApi';
 import type { components } from '../../lib/api/schema';
 
@@ -18,9 +17,7 @@ type Region = components['schemas']['Region'];
 
 const schema = z.object({
   display_name: z.string().trim().min(1, 'required').max(80, 'too_long'),
-  legal_name: z.string().trim().min(1, 'required').max(160, 'too_long'),
-  company_number: z.string().trim(),
-  approval_number: z.string().trim(),
+  legal_name: z.string().trim().max(160, 'too_long'),
   description: z.string().max(5000, 'too_long'),
   region_id: z.string(),
   city_id: z.string(),
@@ -50,7 +47,7 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
   const [message, setMessage] = useState<string | null>(null);
   const [contacts, setContacts] = useState<ContactRow[]>(() => est.contacts.map((c) => ({ ...c, is_verification_phone: c.is_verification_phone ?? false })));
   const toValues = (e: Establishment): Values => ({
-    display_name: e.display_name, legal_name: e.legal_name, company_number: e.company_number ?? '', approval_number: e.approval_number ?? '',
+    display_name: e.display_name, legal_name: e.legal_name,
     description: e.description, region_id: e.region?.id ?? '', city_id: e.city?.id ?? '', address: e.address ?? '', address_public: e.address_public,
   });
   const { register, handleSubmit, reset, setError, formState: { errors, isDirty }, watch, setValue } = useForm<Values>({ defaultValues: toValues(est), resolver: zodResolver(schema) });
@@ -58,7 +55,6 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
 
   const regionId = watch('region_id');
   const cities = regions.filter((r) => r.kind === 'CITY' && r.parent_id === regionId);
-  const locked = est.verification_status === 'VERIFIED';
 
   const save = handleSubmit(async (v) => {
     setServerError(null);
@@ -68,7 +64,7 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
       await api('/manager/establishment', {
         method: 'PUT',
         body: {
-          display_name: v.display_name, legal_name: v.legal_name, company_number: v.company_number, approval_number: v.approval_number,
+          display_name: v.display_name, legal_name: v.legal_name,
           description: v.description, opening_hours: hours, region_id: v.region_id || null, city_id: v.city_id || null,
           address: v.address || null, address_public: v.address_public,
         },
@@ -77,7 +73,7 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
         method: 'PUT',
         body: { contacts: contacts.filter((c) => c.value.trim()).map((c) => ({ type: c.type, value: c.value.trim(), visibility: c.visibility, is_verification_phone: c.is_verification_phone })) },
       });
-      setMessage(locked ? 'Enregistré. Une modification de l’agrément, de la raison sociale ou du BCE remet la fiche en vérification.' : 'Fiche enregistrée.');
+      setMessage('Fiche enregistrée.');
       onSaved();
     } catch (e) {
       if (e instanceof ApiError) {
@@ -89,27 +85,8 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
     }
   });
 
-  const submit = async () => {
-    setServerError(null);
-    try {
-      await api('/manager/establishment/submit', { method: 'POST' });
-      setMessage('Fiche soumise. La plateforme vérifie le numéro BCE et l’agrément.');
-      onSaved();
-    } catch (e) {
-      setServerError(describeError(e));
-    }
-  };
-
-  const verificationPhones = contacts.filter((c) => c.is_verification_phone).length;
-
   return (
     <Stack gap="6">
-      <HStack justify="space-between" wrap="wrap">
-        <HStack><Text fontWeight="semibold">Statut :</Text><StatusBadge value={est.verification_status} /></HStack>
-        {est.verification_status === 'VERIFIED' && est.verified_at && <Text fontSize="sm" color="fg.muted">Vérifié le {dateFr(est.verified_at)}</Text>}
-      </HStack>
-      {locked && <Text fontSize="sm" color="fg.muted">Un changement d’agrément, de raison sociale ou de BCE repasse la fiche en vérification et dépublie ses profils.</Text>}
-
       <form onSubmit={save} noValidate>
         <Stack gap="6">
           <Section title="Identité de la maison">
@@ -119,20 +96,11 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
                 <Input {...register('display_name')} maxLength={80} />
                 {errors.display_name && <Field.ErrorText>{messageFor(errors.display_name.message ?? '')}</Field.ErrorText>}
               </Field.Root>
-              <Field.Root invalid={!!errors.legal_name} required>
-                <Field.Label>Raison sociale</Field.Label>
+              <Field.Root invalid={!!errors.legal_name}>
+                <Field.Label>Raison sociale (facultatif)</Field.Label>
                 <Input {...register('legal_name')} maxLength={160} />
+                <Field.HelperText>Utilisée uniquement sur tes factures.</Field.HelperText>
                 {errors.legal_name && <Field.ErrorText>{messageFor(errors.legal_name.message ?? '')}</Field.ErrorText>}
-              </Field.Root>
-              <Field.Root>
-                <Field.Label>Numéro BCE</Field.Label>
-                <Input {...register('company_number')} placeholder="0123.456.789" />
-                <Field.HelperText>Vérifié par la clé de contrôle, puis par la plateforme.</Field.HelperText>
-              </Field.Root>
-              <Field.Root>
-                <Field.Label>Numéro d’agrément</Field.Label>
-                <Input {...register('approval_number')} />
-                <Field.HelperText>Loi du 3 mai 2024. Affiché sur chaque fiche profil.</Field.HelperText>
               </Field.Root>
             </Grid>
           </Section>
@@ -175,7 +143,7 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
           <Section title="Coordonnées">
             <Stack gap="3">
               <Text fontSize="sm" color="fg.muted">
-                Exactement un numéro de téléphone « de contrôle » est requis pour la soumission (RM-07) : il n’est jamais affiché.
+                Tu peux marquer un téléphone comme « numéro pour la plateforme » : il sert uniquement à te joindre (par exemple pour réinitialiser ton mot de passe) et n’est jamais affiché.
               </Text>
               {contacts.map((c, i) => (
                 <HStack key={i} align="flex-end" wrap="wrap">
@@ -198,23 +166,19 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
                   <Checkbox.Root checked={c.is_verification_phone} disabled={c.type !== 'PHONE'} onCheckedChange={(d) => setContacts(contacts.map((x, j) => (j === i ? { ...x, is_verification_phone: d.checked === true, visibility: 'HIDDEN' } : x)))}>
                     <Checkbox.HiddenInput />
                     <Checkbox.Control />
-                    <Checkbox.Label>Téléphone de contrôle</Checkbox.Label>
+                    <Checkbox.Label>Numéro pour la plateforme</Checkbox.Label>
                   </Checkbox.Root>
                   <Button size="sm" variant="ghost" onClick={() => setContacts(contacts.filter((_, j) => j !== i))}>Retirer</Button>
                 </HStack>
               ))}
               <HStack>
                 <Button size="sm" variant="outline" onClick={() => setContacts([...contacts, { type: 'PHONE', value: '', visibility: 'PUBLIC', is_verification_phone: false }])}>Ajouter une coordonnée</Button>
-                {verificationPhones !== 1 && <Text fontSize="sm" color="danger">Il faut exactement un téléphone de contrôle.</Text>}
               </HStack>
             </Stack>
           </Section>
 
           <HStack gap="3" wrap="wrap">
             <Button type="submit" colorPalette="brand" disabled={!isDirty && contacts.length === est.contacts.length}>Enregistrer</Button>
-            {(est.verification_status === 'DRAFT' || est.verification_status === 'REJECTED') && (
-              <Button variant="outline" onClick={submit}>Soumettre pour vérification</Button>
-            )}
           </HStack>
           {message && <Text color="success" role="status">{message}</Text>}
           {serverError && <Text color="danger" role="alert">{serverError}</Text>}

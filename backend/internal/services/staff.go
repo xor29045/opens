@@ -163,10 +163,6 @@ func (s *StaffService) Overview(ctx context.Context, actor *rbac.Actor) (*Manage
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
-	contacts, err := s.Repos.Establishments.Contacts(ctx, e.ID)
-	if err != nil {
-		return nil, apperr.Internal(err)
-	}
 	st, err := s.Publication.EstablishmentState(ctx, e)
 	if err != nil {
 		return nil, err
@@ -179,7 +175,7 @@ func (s *StaffService) Overview(ctx context.Context, actor *rbac.Actor) (*Manage
 		out.Subscription = sub
 	}
 	out.Checklist = []ChecklistItem{
-		{Key: "establishment_complete", Done: len(missingForSubmission(e, contacts)) == 0},
+		{Key: "establishment_complete", Done: IsComplete(e)},
 		{Key: "subscription_active", Done: st.Entitled},
 	}
 	if out.PendingCount, err = s.Repos.Profiles.CountPending(ctx, e.ID); err != nil {

@@ -1,6 +1,5 @@
 // Package validators holds the domain-specific input checks (§5.1): username,
-// password policy, E.164 phones, social network URLs, Belgian enterprise
-// numbers (BCE), approval numbers, opening hours, slugs.
+// password policy, E.164 phones, social network URLs, opening hours, slugs.
 package validators
 
 import (
@@ -8,7 +7,6 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -22,7 +20,6 @@ var (
 	usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]{3,30}$`)
 	e164Re     = regexp.MustCompile(`^\+[1-9][0-9]{6,14}$`)
 	telegramRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{4,31}$`)
-	approvalRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9./ -]{1,38}[A-Za-z0-9]$`)
 	hhmmRe     = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 	slugRe     = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 )
@@ -143,46 +140,6 @@ func httpsURL(raw string, domains []string) (string, string) {
 	u.Host = strings.ToLower(u.Host)
 	u.Fragment = ""
 	return u.String(), ""
-}
-
-// CompanyNumber validates a Belgian enterprise number (BCE/KBO): 10 digits,
-// first digit 0 or 1, checksum 97 − (first 8 digits mod 97). Returns the
-// canonical "0123.456.789" form or "".
-func CompanyNumber(s string) string {
-	var digits strings.Builder
-	for _, r := range strings.TrimPrefix(strings.ToUpper(strings.TrimSpace(s)), "BE") {
-		switch {
-		case r >= '0' && r <= '9':
-			digits.WriteRune(r)
-		case r == ' ' || r == '.' || r == '-':
-		default:
-			return ""
-		}
-	}
-	d := digits.String()
-	if len(d) == 9 {
-		d = "0" + d
-	}
-	if len(d) != 10 || (d[0] != '0' && d[0] != '1') {
-		return ""
-	}
-	base, _ := strconv.Atoi(d[:8])
-	check, _ := strconv.Atoi(d[8:])
-	if 97-(base%97) != check {
-		return ""
-	}
-	return d[:4] + "." + d[4:7] + "." + d[7:]
-}
-
-// ApprovalNumber validates the format of an approval number (loi du 3 mai
-// 2024). The official format is not published yet: the check is permissive
-// and the admin verifies the number against the registry (RM-11).
-func ApprovalNumber(s string) string {
-	s = strings.ToUpper(strings.Join(strings.Fields(s), " "))
-	if !approvalRe.MatchString(s) {
-		return ""
-	}
-	return s
 }
 
 var weekDays = map[string]bool{"mon": true, "tue": true, "wed": true, "thu": true, "fri": true, "sat": true, "sun": true}

@@ -10,12 +10,11 @@ export const dateTimeFr = (iso: string | null | undefined): string =>
 /** Labels of the publication reasons returned by the API (RM-22). */
 export const reasonLabels: Record<string, string> = {
   MANAGER_ACCOUNT_INACTIVE: 'Compte du gérant inactif',
-  ESTABLISHMENT_NOT_VERIFIED: 'Établissement pas encore vérifié',
   ESTABLISHMENT_HIDDEN: 'Établissement masqué par la plateforme',
   ESTABLISHMENT_SUBSCRIPTION_INACTIVE: 'Abonnement de l’établissement inactif',
   PENDING_MANAGER_APPROVAL: 'En attente de validation par le gérant',
   PROFILE_NOT_ACTIVE: 'Profil non activé',
-  PROFILE_NOT_ATTESTED: 'Profil non attesté (âge et contrat)',
+  PROFILE_NOT_ATTESTED: 'Âge non attesté par la maison',
   PROFILE_HIDDEN: 'Profil masqué par la plateforme',
   NO_PRIMARY_PHOTO: 'Aucune photo principale',
   PROFESSIONAL_ACCOUNT_INACTIVE: 'Compte professionnel suspendu',

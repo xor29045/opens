@@ -1,6 +1,6 @@
 ---
 import Public from '../../layouts/Public.astro';
-// Legal texts are drafts until the Belgian lawyer's opinion (T0.1) is in.
+// Legal texts are placeholders until their final wording is provided.
 const docs: Record<string, string> = {
   mentions: 'Mentions légales',
   cgu: 'Conditions générales d’utilisation',
@@ -16,7 +16,7 @@ if (!title) return new Response(null, { status: 404 });
     <span class="os-eyebrow">Informations légales</span>
     <h1 class="os-title os-title--lg">{title}</h1>
     <p class="os-notice">
-      <strong>Version provisoire</strong> — ce texte doit être validé par un avocat belge (T0.1) avant la mise en production.
+      Ce document sera publié prochainement.
     </p>
   </article>
 </Public>

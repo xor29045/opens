@@ -368,12 +368,20 @@ function ManagerLifecycle({ profile, base, onChange }: { profile: Profile; base:
       throw e;
     }
   };
-  const canActivate = profile.attestation.attested && (profile.status === 'DRAFT' || profile.status === 'ARCHIVED');
+  // Without a subscription the house cannot put profiles in service.
+  const noSubscription = profile.publication.reasons.includes('ESTABLISHMENT_SUBSCRIPTION_INACTIVE');
+  const canActivate = profile.attestation.attested && !noSubscription && (profile.status === 'DRAFT' || profile.status === 'ARCHIVED');
   return (
     <Section title="Cycle de vie">
       <Stack gap="3">
+        {noSubscription && profile.status !== 'ACTIVE' && (
+          <Text fontSize="sm" color="warning">
+            Ton établissement n’a pas d’abonnement actif : tu ne peux pas mettre ce profil en service.{' '}
+            <a href="/gerant/dashboard/abonnement">Souscrire</a>
+          </Text>
+        )}
         <HStack wrap="wrap" gap="2">
-          <Button size="sm" colorPalette="brand" disabled={!canActivate} onClick={() => run('/activate', 'POST').catch(() => undefined)}>Activer</Button>
+          <Button size="sm" colorPalette="brand" disabled={!canActivate} onClick={() => run('/activate', 'POST').catch(() => undefined)}>Mettre en service</Button>
           <ActionDialog trigger="Archiver" title="Archiver ce profil ?" danger
             description="Le profil est dépublié, l’attestation est retirée et le compte lié est suspendu. Les sessions du/de la professionnel·le sont fermées."
             confirmLabel="Archiver" onConfirm={() => run('/archive', 'POST')} />

@@ -21,6 +21,7 @@ import (
 	"opensex/backend/internal/app"
 	"opensex/backend/internal/config"
 	"opensex/backend/internal/database"
+	"opensex/backend/internal/devseed"
 	"opensex/backend/internal/jobs"
 	"opensex/backend/pkg/jwt"
 	"opensex/backend/pkg/payment"
@@ -32,6 +33,7 @@ func usage() {
   ops keys generate --dir DIR --kid KID   (Ed25519 key pair for JWT signing)
   ops job run NAME                        (renewal_invoices, expire_periods, reconcile_payments, recompute_publication, purge)
   ops health check URL                    (container healthcheck, exits 1 if not 200)
+  ops dev seed                            (development only: demo houses, profiles, clients, payments)
   ops dev ipn PAYMENT_ID STATUS [API_URL] (development only: signed IPN for the fake provider;
                                           STATUS = finished | partially_paid | expired ...)`)
 	os.Exit(2)
@@ -107,6 +109,9 @@ func run(group, cmd string, args []string) error {
 		if cmd == "ipn" && len(args) >= 2 {
 			return devIPN(args)
 		}
+		if cmd == "seed" {
+			return devSeed()
+		}
 	case "job":
 		if cmd == "run" && len(args) == 1 {
 			cfg, err := config.Load()
@@ -165,5 +170,28 @@ func devIPN(args []string) error {
 	defer resp.Body.Close()
 	out, _ := io.ReadAll(resp.Body)
 	fmt.Printf("%d %s\n", resp.StatusCode, out)
+	return nil
+}
+
+// devSeed loads the demo data set (internal/devseed).
+func devSeed() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	a, err := app.New(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer a.Close()
+	start := time.Now()
+	r, err := devseed.Run(ctx, a.Svc)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("demo data loaded in %s: %d houses, %d attested profiles, %d pending registrations, %d clients, %d favorites\n",
+		time.Since(start).Round(time.Second), r.Establishments, r.Profiles, r.Pending, r.Clients, r.Favorites)
+	fmt.Printf("every demo account uses the password %q (managers: rose_gerant, velours_gerant, lune_gerant, jade_gerant, opale_gerant, nacre_gerant; clients: client_alex …)\n", devseed.Password)
 	return nil
 }

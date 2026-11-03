@@ -118,28 +118,25 @@ type Category struct {
 }
 
 type Establishment struct {
-	ID               uuid.UUID `gorm:"type:uuid;primaryKey"`
-	ManagerUserID    uuid.UUID `gorm:"type:uuid"`
-	Slug             string
-	DisplayName      string
-	LegalName        string
-	CompanyNumber    *string
-	ApprovalNumber   *string
-	Description      string
-	OpeningHours     JSON
-	RegionID         *uuid.UUID `gorm:"type:uuid"`
-	CityID           *uuid.UUID `gorm:"type:uuid"`
-	Address          *string
-	AddressPublic    bool
-	VerificationNote *string
-	SubmittedAt      *time.Time
-	VerifiedAt       *time.Time
-	VerifiedBy       *uuid.UUID `gorm:"type:uuid"`
-	IsHidden         bool
-	HiddenReason     *string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	DeletedAt        gorm.DeletedAt
+	ID             uuid.UUID `gorm:"type:uuid;primaryKey"`
+	ManagerUserID  uuid.UUID `gorm:"type:uuid"`
+	Slug           string
+	DisplayName    string
+	LegalName      string
+	CompanyNumber  *string
+	ApprovalNumber *string
+	Description    string
+	OpeningHours   JSON
+	RegionID       *uuid.UUID `gorm:"type:uuid"`
+	CityID         *uuid.UUID `gorm:"type:uuid"`
+	Address        *string
+	AddressPublic  bool
+	SubmittedAt    *time.Time
+	IsHidden       bool
+	HiddenReason   *string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      gorm.DeletedAt
 }
 
 // Contact types and visibilities (RM-40).
@@ -369,3 +366,10 @@ const (
 	PaymentExpired    = "EXPIRED"
 	PaymentRefunded   = "REFUNDED"
 )
+
+// ClientDislike hides a profile from the client's "Découvrir" deck.
+type ClientDislike struct {
+	ClientUserID uuid.UUID `gorm:"type:uuid;primaryKey"`
+	ProfileID    uuid.UUID `gorm:"type:uuid;primaryKey"`
+	CreatedAt    time.Time
+}

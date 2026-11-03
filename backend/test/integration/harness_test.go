@@ -112,6 +112,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 		IPHashKey: crypto.RandomBytes(32), RecoveryCodeKey: crypto.RandomBytes(32),
 		CORSAllowedOrigins: []string{origin}, UnderpayToleranceBPS: 100,
 		NOWPaymentsIPNCallbackURL: origin + "/api/v1/webhooks/nowpayments",
+		NOWPaymentsIPNSecret:      "ipn-secret",
 		PlatformLegalName:         "Éditeur SRL", PlatformCompanyNumber: "0403.170.701",
 	}
 	enc, _ := crypto.NewFieldEncryptor("v1:" + strings.Repeat("A", 43) + "=")
@@ -292,22 +293,15 @@ func regionCity(e *env) (string, string) {
 	return region.ID, city.ID
 }
 
-// validBCE returns a valid, unique Belgian enterprise number.
-func validBCE(n int) string {
-	base := 1000000 + n
-	return fmt.Sprintf("%08d%02d", base, 97-(base%97)) // 10 digits, starts with 0
-}
-
-// verifiedManager registers a manager, fills and submits the establishment
-// and has an admin verify it. It returns the manager and the establishment slug.
-func (e *env) verifiedManager(adminToken string) (account, string) {
+// readyManager registers a manager and fills the establishment page (no
+// verification step anymore). It returns the manager and the establishment slug.
+func (e *env) readyManager() (account, string) {
 	e.t.Helper()
 	m := e.register("manager", nil)
 	region, city := regionCity(e)
-	seq++
 	est := e.put("/api/v1/manager/establishment", m.Token, map[string]any{
-		"display_name": uniq("Maison "), "legal_name": "Maison SRL", "company_number": validBCE(seq), "approval_number": uniq("AGR-2025-"),
-		"description": "Maison agréée", "region_id": region, "city_id": city, "address": "Rue X 1, 1050 Ixelles", "address_public": false,
+		"display_name": uniq("Maison "), "legal_name": "Maison SRL",
+		"description": "Maison", "region_id": region, "city_id": city, "address": "Rue X 1, 1050 Ixelles", "address_public": false,
 		"opening_hours": map[string]any{"mon": []any{map[string]any{"open": "10:00", "close": "02:00"}}},
 	}).expect(http.StatusOK).JSON()
 	e.put("/api/v1/manager/establishment/contacts", m.Token, map[string]any{"contacts": []any{
@@ -315,8 +309,6 @@ func (e *env) verifiedManager(adminToken string) (account, string) {
 		map[string]any{"type": "PHONE", "value": "+32 470 00 00 02", "visibility": "PUBLIC"},
 		map[string]any{"type": "WHATSAPP", "value": "+32 470 00 00 03", "visibility": "CLIENTS"},
 	}}).expect(http.StatusOK)
-	e.post("/api/v1/manager/establishment/submit", m.Token, nil).expect(http.StatusOK)
-	e.post("/api/v1/admin/establishments/"+est["id"].(string)+"/verify", adminToken, map[string]any{}).expect(http.StatusNoContent)
 	return m, est["slug"].(string)
 }
 
@@ -355,8 +347,13 @@ func (e *env) upload(path, token string, data []byte) *resp {
 
 // subscribeAndPay subscribes the manager's establishment and simulates a
 // confirmed payment through a signed IPN.
+// subscribeAndPay subscribes the manager's establishment and simulates a
+// confirmed payment. It does nothing when the establishment is already entitled.
 func (e *env) subscribeAndPay(m account) {
 	e.t.Helper()
+	if e.get("/api/v1/billing/subscription", m.Token).expect(http.StatusOK).JSON()["entitled"] == true {
+		return
+	}
 	p := e.post("/api/v1/billing/subscription", m.Token, map[string]any{}).expect(http.StatusCreated).JSON()
 	e.payIPN(p["id"].(string), "finished", "1.0", "1.0")
 }
@@ -400,8 +397,9 @@ func (e *env) publishedProfile(m account, estSlug string) (account, string) {
 		map[string]any{"type": "WHATSAPP", "value": "+32470222222", "visibility": "CLIENTS"},
 		map[string]any{"type": "TELEGRAM", "value": "@lola_private", "visibility": "HIDDEN"},
 	}}).expect(http.StatusOK)
-	e.put("/api/v1/manager/profiles/"+id+"/attestation", m.Token, map[string]any{"birth_date": "1995-03-14", "employment_reference": "CT-2026-001", "attested": true}).expect(http.StatusOK)
-	e.post("/api/v1/manager/profiles/"+id+"/activate", m.Token, nil).expect(http.StatusOK)
+	e.put("/api/v1/manager/profiles/"+id+"/attestation", m.Token, map[string]any{"birth_date": "1995-03-14", "attested": true}).expect(http.StatusOK)
+	// Attested + paid subscription → in service without a manual step (ADR-020).
+	e.subscribeAndPay(m)
 	return p, id
 }
 

@@ -80,7 +80,7 @@ func (r *EstablishmentRepo) ReplaceContacts(ctx context.Context, id uuid.UUID, c
 }
 
 // Selectable lists the houses a professional can choose at registration:
-// VERIFIED, not hidden, manager active.
+// named, not hidden, manager active.
 func (r *EstablishmentRepo) Selectable(ctx context.Context) ([]EstablishmentSummary, error) {
 	var out []EstablishmentSummary
 	err := r.db(ctx).Raw(`SELECT e.id, e.slug, e.display_name, c.name AS city_name, rg.name AS region_name
@@ -88,7 +88,7 @@ func (r *EstablishmentRepo) Selectable(ctx context.Context) ([]EstablishmentSumm
 		JOIN users m ON m.id = e.manager_user_id AND m.status = 'ACTIVE' AND m.deleted_at IS NULL
 		LEFT JOIN regions c ON c.id = e.city_id
 		LEFT JOIN regions rg ON rg.id = e.region_id
-		WHERE e.deleted_at IS NULL AND e.verification_status = 'VERIFIED' AND NOT e.is_hidden
+		WHERE e.deleted_at IS NULL AND e.display_name <> '' AND NOT e.is_hidden
 		ORDER BY e.display_name`).Scan(&out).Error
 	return out, err
 }
@@ -129,7 +129,7 @@ func (r *EstablishmentRepo) AdminList(ctx context.Context, f EstablishmentFilter
 	}
 	if f.Query != "" {
 		like := "%" + escapeLike(f.Query) + "%"
-		q = q.Where("(e.display_name ILIKE ? OR e.legal_name ILIKE ? OR e.company_number ILIKE ? OR e.approval_number ILIKE ? OR m.username::text ILIKE ?)", like, like, like, like, like)
+		q = q.Where("(e.display_name ILIKE ? OR e.legal_name ILIKE ? OR m.username::text ILIKE ?)", like, like, like)
 	}
 	var total int64
 	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
@@ -139,22 +139,8 @@ func (r *EstablishmentRepo) AdminList(ctx context.Context, f EstablishmentFilter
 	err := q.Select(`e.*, m.username AS manager_username, m.status AS manager_status, sub.status AS subscription_status,
 		(SELECT count(*) FROM professional_profiles p WHERE p.establishment_id = e.id AND p.deleted_at IS NULL) AS profiles_count,
 		(SELECT count(*) FROM professional_profiles p WHERE p.establishment_id = e.id AND p.is_published) AS published_count`).
-		Order("e.submitted_at DESC NULLS LAST, e.created_at DESC").Offset(p.Offset()).Limit(p.PageSize).Scan(&out).Error
+		Order("e.created_at DESC").Offset(p.Offset()).Limit(p.PageSize).Scan(&out).Error
 	return out, total, err
-}
-
-func (r *EstablishmentRepo) CountByVerification(ctx context.Context) (map[string]int64, error) {
-	type row struct {
-		Status string
-		N      int64
-	}
-	var rows []row
-	err := r.db(ctx).Raw(`SELECT verification_status AS status, count(*) AS n FROM establishments WHERE deleted_at IS NULL GROUP BY 1`).Scan(&rows).Error
-	out := map[string]int64{}
-	for _, rw := range rows {
-		out[rw.Status] = rw.N
-	}
-	return out, err
 }
 
 func (r *EstablishmentRepo) Region(ctx context.Context, id *uuid.UUID) (*models.Region, error) {

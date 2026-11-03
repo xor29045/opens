@@ -92,9 +92,9 @@ type MeResponse struct {
 }
 
 type EstablishmentRef struct {
-	ID                 uuid.UUID `json:"id"`
-	Slug               string    `json:"slug"`
-	DisplayName        string    `json:"display_name"`
+	ID          uuid.UUID `json:"id"`
+	Slug        string    `json:"slug"`
+	DisplayName string    `json:"display_name"`
 }
 
 type ProfileRef struct {
@@ -172,35 +172,28 @@ func NewProfileContact(c models.ProfileContact) Contact {
 }
 
 type Establishment struct {
-	ID                 uuid.UUID   `json:"id"`
-	Slug               string      `json:"slug"`
-	DisplayName        string      `json:"display_name"`
-	LegalName          string      `json:"legal_name"`
-	CompanyNumber      *string     `json:"company_number"`
-	ApprovalNumber     *string     `json:"approval_number"`
-	Description        string      `json:"description"`
-	OpeningHours       models.JSON `json:"opening_hours"`
-	Region             *Region     `json:"region"`
-	City               *Region     `json:"city"`
-	Address            *string     `json:"address"`
-	AddressPublic      bool        `json:"address_public"`
-	VerificationNote   *string     `json:"verification_note"`
-	SubmittedAt        *time.Time  `json:"submitted_at"`
-	VerifiedAt         *time.Time  `json:"verified_at"`
-	IsHidden           bool        `json:"is_hidden"`
-	HiddenReason       *string     `json:"hidden_reason"`
-	Contacts           []Contact   `json:"contacts"`
-	CreatedAt          time.Time   `json:"created_at"`
-	UpdatedAt          time.Time   `json:"updated_at"`
+	ID            uuid.UUID   `json:"id"`
+	Slug          string      `json:"slug"`
+	DisplayName   string      `json:"display_name"`
+	LegalName     string      `json:"legal_name"`
+	Description   string      `json:"description"`
+	OpeningHours  models.JSON `json:"opening_hours"`
+	Region        *Region     `json:"region"`
+	City          *Region     `json:"city"`
+	Address       *string     `json:"address"`
+	AddressPublic bool        `json:"address_public"`
+	IsHidden      bool        `json:"is_hidden"`
+	HiddenReason  *string     `json:"hidden_reason"`
+	Contacts      []Contact   `json:"contacts"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
 }
 
 func NewEstablishment(d *services.EstablishmentDetail) Establishment {
 	e := d.Establishment
-	out := Establishment{ID: e.ID, Slug: e.Slug, DisplayName: e.DisplayName, LegalName: e.LegalName, CompanyNumber: e.CompanyNumber,
-		ApprovalNumber: e.ApprovalNumber, Description: e.Description, OpeningHours: e.OpeningHours, Address: e.Address,
-		AddressPublic: e.AddressPublic, VerificationNote: e.VerificationNote,
-		SubmittedAt: e.SubmittedAt, VerifiedAt: e.VerifiedAt, IsHidden: e.IsHidden, HiddenReason: e.HiddenReason,
-		Contacts: MapSlice(d.Contacts, NewEstablishmentContact), CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt}
+	out := Establishment{ID: e.ID, Slug: e.Slug, DisplayName: e.DisplayName, LegalName: e.LegalName, Description: e.Description,
+		OpeningHours: e.OpeningHours, Address: e.Address, AddressPublic: e.AddressPublic, IsHidden: e.IsHidden,
+		HiddenReason: e.HiddenReason, Contacts: MapSlice(d.Contacts, NewEstablishmentContact), CreatedAt: e.CreatedAt, UpdatedAt: e.UpdatedAt}
 	if d.Region != nil {
 		r := NewRegion(*d.Region)
 		out.Region = &r

@@ -24,7 +24,7 @@ func (h *Handler) UpdateEstablishment(c *gin.Context) {
 		return
 	}
 	d, err := h.Svc.Establishments.Update(c.Request.Context(), actor(c), services.EstablishmentInput{
-		DisplayName: req.DisplayName, LegalName: req.LegalName, CompanyNumber: req.CompanyNumber, ApprovalNumber: req.ApprovalNumber,
+		DisplayName: req.DisplayName, LegalName: req.LegalName,
 		Description: req.Description, OpeningHours: req.OpeningHours, RegionID: req.RegionID, CityID: req.CityID,
 		Address: req.Address, AddressPublic: req.AddressPublic})
 	if err != nil {
@@ -47,15 +47,6 @@ func (h *Handler) ReplaceEstablishmentContacts(c *gin.Context) {
 	ok(c, gin.H{"items": dto.MapSlice(cs, dto.NewEstablishmentContact)})
 }
 
-func (h *Handler) SubmitEstablishment(c *gin.Context) {
-	d, err := h.Svc.Establishments.Submit(c.Request.Context(), actor(c))
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	ok(c, dto.NewEstablishment(d))
-}
-
 func (h *Handler) ManagerOverview(c *gin.Context) {
 	o, err := h.Svc.Staff.Overview(c.Request.Context(), actor(c))
 	if err != nil {
@@ -64,14 +55,13 @@ func (h *Handler) ManagerOverview(c *gin.Context) {
 	}
 	profiles := dto.MapSlice(o.Profiles, dto.NewProfileSummary)
 	ok(c, gin.H{
-		"establishment": dto.EstablishmentRef{ID: o.Establishment.ID, Slug: o.Establishment.Slug, DisplayName: o.Establishment.DisplayName},
-		"verification_note": o.Establishment.VerificationNote,
-		"checklist":         o.Checklist,
-		"blocking_reasons":  o.EstablishmentState,
-		"subscription":      dto.NewSubscription(o.Subscription),
-		"entitled":          o.Entitled,
-		"pending_count":     o.PendingCount,
-		"profiles":          profiles,
+		"establishment":    dto.EstablishmentRef{ID: o.Establishment.ID, Slug: o.Establishment.Slug, DisplayName: o.Establishment.DisplayName},
+		"checklist":        o.Checklist,
+		"blocking_reasons": o.EstablishmentState,
+		"subscription":     dto.NewSubscription(o.Subscription),
+		"entitled":         o.Entitled,
+		"pending_count":    o.PendingCount,
+		"profiles":         profiles,
 	})
 }
 

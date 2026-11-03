@@ -103,3 +103,13 @@ func (s *StatsService) sum(ctx context.Context, keys []string) int64 {
 	}
 	return total
 }
+
+// SeedCounts sets the counters of a given day. Development data only
+// (`ops dev seed`); normal traffic goes through RecordView.
+func (s *StatsService) SeedCounts(ctx context.Context, profileID uuid.UUID, day time.Time, views, contacts int64) error {
+	pipe := s.Redis.Pipeline()
+	pipe.Set(ctx, statsKey("views", profileID, day), views, statsRetention)
+	pipe.Set(ctx, statsKey("contacts", profileID, day), contacts, statsRetention)
+	_, err := pipe.Exec(ctx)
+	return err
+}

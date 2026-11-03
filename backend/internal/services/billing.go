@@ -536,6 +536,17 @@ func (s *BillingService) markPaid(ctx context.Context, p *models.Payment) error 
 	}
 	s.Audit.Record(ctx, AuditEvent{Action: "billing.subscription.activated", Category: models.AuditBilling, TargetType: "subscription",
 		TargetID: sub.ID.String(), Metadata: map[string]any{"from": sub.Status, "period_end": end.Format(time.RFC3339)}})
+	// Once the subscription is paid, attested profiles go in service without
+	// waiting for a manual step (ADR-020). Pending registrations still need
+	// the manager's age attestation.
+	activated, err := s.Repos.Profiles.ActivateAttestedDrafts(ctx, sub.EstablishmentID, now)
+	if err != nil {
+		return apperr.Internal(err)
+	}
+	for _, id := range activated {
+		s.Audit.Record(ctx, AuditEvent{Action: "profile.activated", Category: models.AuditProfile, TargetType: "profile",
+			TargetID: id.String(), ActorRole: "SYSTEM", Metadata: map[string]any{"reason": "subscription_paid"}})
+	}
 	return s.Publication.Recompute(ctx, sub.EstablishmentID)
 }
 
@@ -543,8 +554,6 @@ type billingSnapshot struct {
 	Number         string `json:"number"`
 	LegalName      string `json:"legal_name"`
 	DisplayName    string `json:"display_name"`
-	CompanyNumber  string `json:"company_number"`
-	ApprovalNumber string `json:"approval_number"`
 	Address        string `json:"address"`
 	PeriodStart    string `json:"period_start"`
 	PeriodEnd      string `json:"period_end"`
@@ -584,7 +593,7 @@ func (s *BillingService) issueInvoice(ctx context.Context, p *models.Payment, no
 		return apperr.Internal(err)
 	}
 	snap := billingSnapshot{Number: number, LegalName: est.LegalName, DisplayName: est.DisplayName,
-		CompanyNumber: deref(est.CompanyNumber), ApprovalNumber: deref(est.ApprovalNumber), Address: deref(est.Address),
+		Address:      deref(est.Address),
 		PlatformName: s.Cfg.PlatformLegalName, PlatformNumber: s.Cfg.PlatformCompanyNumber, PlatformAddr: s.Cfg.PlatformAddress,
 		PayCurrency: deref(fresh.PayCurrency), PayAmount: deref(fresh.PayAmountReceived)}
 	if fresh.PeriodStart != nil {
@@ -615,9 +624,7 @@ func renderInvoice(inv *models.Invoice, snap billingSnapshot) []byte {
 		{X: 50, Y: 689, Size: 10, Text: snap.PlatformAddr},
 		{X: 320, Y: 730, Size: 11, Bold: true, Text: "Client"},
 		{X: 320, Y: 715, Size: 10, Text: snap.LegalName},
-		{X: 320, Y: 702, Size: 10, Text: "BCE : " + snap.CompanyNumber},
-		{X: 320, Y: 689, Size: 10, Text: "N° d’agrément : " + snap.ApprovalNumber},
-		{X: 320, Y: 676, Size: 10, Text: snap.Address},
+		{X: 320, Y: 702, Size: 10, Text: snap.Address},
 		{X: 50, Y: 630, Size: 11, Bold: true, Text: "Désignation"},
 		{X: 430, Y: 630, Size: 11, Bold: true, Text: "Montant"},
 		{X: 50, Y: 610, Size: 10, Text: "Abonnement plateforme — " + snap.DisplayName},

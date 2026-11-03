@@ -118,7 +118,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register a PROFESSIONAL attached to a VERIFIED house (profile PENDING_APPROVAL) */
+        /** Register a PROFESSIONAL attached to a house (profile PENDING_APPROVAL) */
         post: operations["post_auth_register_professional"];
         delete?: never;
         options?: never;
@@ -495,7 +495,7 @@ export interface paths {
         };
         /** Own establishment (all fields and contacts) */
         get: operations["get_manager_establishment"];
-        /** Update the establishment (approval/legal/BCE change → PENDING) */
+        /** Update the establishment */
         put: operations["put_manager_establishment"];
         post?: never;
         delete?: never;
@@ -515,23 +515,6 @@ export interface paths {
         /** Replace establishment contacts */
         put: operations["put_manager_establishment_contacts"];
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/manager/establishment/submit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit for verification (DRAFT/REJECTED → PENDING) */
-        post: operations["post_manager_establishment_submit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -651,7 +634,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Attest age (≥ 18), employment contract and consent (RM-21) */
+        /** Attest age (≥ 18) and consent of the person (RM-21) */
         put: operations["put_manager_profiles_profileId_attestation"];
         post?: never;
         /** Remove the attestation (unpublishes) */
@@ -1031,7 +1014,7 @@ export interface paths {
         /** Current subscription, entitlement and in-app reminder */
         get: operations["get_billing_subscription"];
         put?: never;
-        /** Subscribe (establishment VERIFIED) → invoice URL */
+        /** Subscribe → invoice URL */
         post: operations["post_billing_subscription"];
         delete?: never;
         options?: never;
@@ -1591,57 +1574,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/audit-logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Audit trail (cursor pagination) */
-        get: operations["get_admin_audit_logs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/audit-logs/export": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** CSV export (audited, 10 000 rows max) */
-        get: operations["get_admin_audit_logs_export"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/security-events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Security events */
-        get: operations["get_admin_security_events"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/webhooks/nowpayments": {
         parameters: {
             query?: never;
@@ -1654,6 +1586,58 @@ export interface paths {
         /** NOWPayments IPN */
         post: operations["post_webhooks_nowpayments"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Next profiles to like or pass (published, not yet rated, random order) */
+        get: operations["get_client_discover"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/dislikes/{profileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Pass on a profile (hidden from the deck, removed from favorites) */
+        put: operations["put_client_dislikes_profileId"];
+        post?: never;
+        /** Undo a pass (the profile comes back in the deck) */
+        delete: operations["delete_client_dislikes_profileId"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client/dislikes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Bring every passed profile back in the deck */
+        delete: operations["delete_client_dislikes"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1718,7 +1702,6 @@ export interface components {
             id: string;
             slug: string;
             display_name: string;
-            verification_status: string;
         };
         ProfileRef: {
             /** Format: uuid */
@@ -1820,21 +1803,12 @@ export interface components {
             slug: string;
             display_name: string;
             legal_name: string;
-            company_number: string | null;
-            approval_number: string | null;
             description: string;
             opening_hours: components["schemas"]["OpeningHours"];
             region: components["schemas"]["Region"] | null;
             city: components["schemas"]["Region"] | null;
             address: string | null;
             address_public: boolean;
-            /** @enum {string} */
-            verification_status: "DRAFT" | "PENDING" | "VERIFIED" | "REJECTED";
-            verification_note: string | null;
-            /** Format: date-time */
-            submitted_at: string | null;
-            /** Format: date-time */
-            verified_at: string | null;
             is_hidden: boolean;
             hidden_reason: string | null;
             contacts: components["schemas"]["Contact"][];
@@ -1846,10 +1820,6 @@ export interface components {
         EstablishmentInput: {
             display_name?: string;
             legal_name?: string;
-            /** @description Belgian enterprise number (BCE), checksum validated */
-            company_number?: string;
-            /** @description Approval number (loi du 3 mai 2024) */
-            approval_number?: string;
             description?: string;
             opening_hours?: components["schemas"]["OpeningHours"];
             /** Format: uuid */
@@ -1891,7 +1861,7 @@ export interface components {
             published: boolean;
             /** Format: date-time */
             published_at: string | null;
-            reasons: ("MANAGER_ACCOUNT_INACTIVE" | "ESTABLISHMENT_NOT_VERIFIED" | "ESTABLISHMENT_HIDDEN" | "ESTABLISHMENT_SUBSCRIPTION_INACTIVE" | "PENDING_MANAGER_APPROVAL" | "PROFILE_NOT_ACTIVE" | "PROFILE_NOT_ATTESTED" | "PROFILE_HIDDEN" | "NO_PRIMARY_PHOTO" | "PROFESSIONAL_ACCOUNT_INACTIVE" | "ACTIVE_PROFILES_QUOTA_EXCEEDED")[];
+            reasons: ("MANAGER_ACCOUNT_INACTIVE" | "ESTABLISHMENT_HIDDEN" | "ESTABLISHMENT_SUBSCRIPTION_INACTIVE" | "PENDING_MANAGER_APPROVAL" | "PROFILE_NOT_ACTIVE" | "PROFILE_NOT_ATTESTED" | "PROFILE_HIDDEN" | "NO_PRIMARY_PHOTO" | "PROFESSIONAL_ACCOUNT_INACTIVE" | "ACTIVE_PROFILES_QUOTA_EXCEEDED")[];
         };
         Attestation: {
             attested: boolean;
@@ -2011,8 +1981,6 @@ export interface components {
         PublicEstablishmentRef: {
             slug: string;
             display_name: string;
-            legal_name: string;
-            approval_number: string;
             city: components["schemas"]["Place"] | null;
             region: components["schemas"]["Place"] | null;
         };
@@ -2203,7 +2171,6 @@ export interface components {
         };
         ManagerOverview: {
             establishment: components["schemas"]["EstablishmentRef"];
-            verification_note: string | null;
             checklist: {
                 key: string;
                 done: boolean;
@@ -2249,10 +2216,6 @@ export interface components {
             added_at: string;
         };
         AdminStats: {
-            establishments_by_verification_status: {
-                [key: string]: number;
-            };
-            pending_verifications: number;
             published_profiles: number;
             subscriptions_by_status: {
                 [key: string]: number;
@@ -2375,6 +2338,22 @@ export interface components {
             page_size: number;
             total: number;
             total_pages: number;
+        };
+        DiscoverCard: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            display_name: string;
+            headline: string;
+            age: number | null;
+            /** Format: int64 */
+            price_from_cents: number | null;
+            languages: string[];
+            /** @description Up to 6 photo URLs, primary first */
+            photos: string[];
+            categories: string[];
+            establishment_name: string;
+            city: string | null;
         };
     };
     responses: {
@@ -3260,33 +3239,6 @@ export interface operations {
             429: components["responses"]["429"];
         };
     };
-    post_manager_establishment_submit: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Establishment"];
-                };
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            409: components["responses"]["409"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
     get_manager_publication_status: {
         parameters: {
             query?: never;
@@ -3564,7 +3516,8 @@ export interface operations {
                 "application/json": {
                     /** Format: date */
                     birth_date: string;
-                    employment_reference: string;
+                    /** @description Optional internal reference */
+                    employment_reference?: string;
                     /** @enum {boolean} */
                     attested: true;
                 };
@@ -4841,7 +4794,6 @@ export interface operations {
             query?: {
                 page?: components["parameters"]["page"];
                 page_size?: components["parameters"]["page_size"];
-                verification_status?: string;
                 subscription_status?: string;
                 q?: string;
             };
@@ -4899,70 +4851,6 @@ export interface operations {
             401: components["responses"]["401"];
             403: components["responses"]["403"];
             404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    post_admin_establishments_id_verify: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    note?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            409: components["responses"]["409"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    post_admin_establishments_id_reject: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["Reason"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            409: components["responses"]["409"];
             422: components["responses"]["422"];
             429: components["responses"]["429"];
         };
@@ -5861,6 +5749,108 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    get_client_discover: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["DiscoverCard"][];
+                        /** @description Profiles left to rate in total */
+                        remaining: number;
+                    };
+                };
+            };
+            401: components["responses"]["401"];
+            403: components["responses"]["403"];
+            429: components["responses"]["429"];
+        };
+    };
+    put_client_dislikes_profileId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["401"];
+            403: components["responses"]["403"];
+            404: components["responses"]["404"];
+            429: components["responses"]["429"];
+        };
+    };
+    delete_client_dislikes_profileId: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                profileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["401"];
+            403: components["responses"]["403"];
+            404: components["responses"]["404"];
+            429: components["responses"]["429"];
+        };
+    };
+    delete_client_dislikes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        restored: number;
+                    };
+                };
+            };
+            401: components["responses"]["401"];
+            403: components["responses"]["403"];
+            429: components["responses"]["429"];
         };
     };
 }

@@ -5,21 +5,6 @@ import (
 	"testing"
 )
 
-func TestCompanyNumber(t *testing.T) {
-	// 0403.170.701 is a well-known valid BCE number (checksum 97 − 4031707 mod 97).
-	valid := []string{"0403.170.701", "0403170701", "BE 0403 170 701", "403170701"}
-	for _, v := range valid {
-		if CompanyNumber(v) != "0403.170.701" {
-			t.Errorf("%q should be valid, got %q", v, CompanyNumber(v))
-		}
-	}
-	for _, v := range []string{"0403.170.702", "2403170701", "abc", "", "04031707011"} {
-		if CompanyNumber(v) != "" {
-			t.Errorf("%q should be invalid", v)
-		}
-	}
-}
-
 func TestUsername(t *testing.T) {
 	if Username("lola_92") != "" || Username("ab") == "" || Username("Admin") != "reserved_username" || Username("a b c") == "" {
 		t.Fatal("username rules")

@@ -19,10 +19,10 @@ func contactTypes(m map[string]any) map[string]bool {
 func TestContactVisibility(t *testing.T) {
 	e := newEnv(t)
 	adm := e.adminAccount()
-	m, slug := e.verifiedManager(adm.Token)
+	m, slug := e.readyManager()
 	p, _ := e.publishedProfile(m, slug)
 	e.subscribeAndPay(m)
-	otherM, otherSlug := e.verifiedManager(adm.Token)
+	otherM, otherSlug := e.readyManager()
 	otherP := e.register("professional", map[string]any{"establishment_slug": otherSlug})
 	client := e.register("client", nil)
 	suspended := e.register("client", nil)
@@ -66,7 +66,7 @@ func TestContactVisibility(t *testing.T) {
 func TestPublicationConditions(t *testing.T) {
 	e := newEnv(t)
 	adm := e.adminAccount()
-	m, slug := e.verifiedManager(adm.Token)
+	m, slug := e.readyManager()
 	p, id := e.publishedProfile(m, slug)
 	e.subscribeAndPay(m)
 	published := func() bool {
@@ -110,20 +110,16 @@ func TestPublicationConditions(t *testing.T) {
 	if !published() {
 		t.Fatal("new photo should republish")
 	}
-	// Establishment change of approval number → PENDING → unpublished.
+	// Editing the establishment page never unpublishes (no re-verification).
 	est := e.get("/api/v1/manager/establishment", m.Token).JSON()
 	region := est["region"].(map[string]any)["id"]
 	city := est["city"].(map[string]any)["id"]
-	e.put("/api/v1/manager/establishment", m.Token, map[string]any{"display_name": est["display_name"], "legal_name": est["legal_name"],
-		"company_number": est["company_number"], "approval_number": "AGR-NEW-1", "region_id": region, "city_id": city}).expect(200)
-	if published() {
-		t.Fatal("re-verification should unpublish")
+	e.put("/api/v1/manager/establishment", m.Token, map[string]any{"display_name": est["display_name"], "legal_name": "Autre SRL",
+		"region_id": region, "city_id": city}).expect(200)
+	if !published() {
+		t.Fatal("an establishment edit must not unpublish")
 	}
 	estID := est["id"].(string)
-	e.post("/api/v1/admin/establishments/"+estID+"/verify", adm.Token, map[string]any{}).expect(204)
-	if !published() {
-		t.Fatal("re-verified")
-	}
 	// Quota of active profiles.
 	e.db.Gorm.Exec(`UPDATE subscription_plans SET max_active_profiles = 1`)
 	_, id2 := e.publishedProfile(m, slug)
@@ -153,7 +149,7 @@ func TestPublicationConditions(t *testing.T) {
 func TestFavorites(t *testing.T) {
 	e := newEnv(t)
 	adm := e.adminAccount()
-	m, slug := e.verifiedManager(adm.Token)
+	m, slug := e.readyManager()
 	_, id := e.publishedProfile(m, slug)
 	e.subscribeAndPay(m)
 	a := e.register("client", nil)
@@ -179,8 +175,7 @@ func TestFavorites(t *testing.T) {
 // Scenario 13: uploads are validated and re-encoded without EXIF.
 func TestUploads(t *testing.T) {
 	e := newEnv(t)
-	adm := e.adminAccount()
-	_, slug := e.verifiedManager(adm.Token)
+	_, slug := e.readyManager()
 	p := e.register("professional", map[string]any{"establishment_slug": slug})
 	for name, data := range map[string][]byte{
 		"svg":  []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`),

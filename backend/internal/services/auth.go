@@ -210,6 +210,15 @@ func (s *AuthService) RegisterProfessional(ctx context.Context, in RegisterInput
 		if e, err = s.Repos.Establishments.ByIDForUpdate(ctx, e.ID); err != nil {
 			return apperr.Internal(err)
 		}
+		// Moderation only: a house hidden by the platform, without a public
+		// name or whose manager is suspended does not accept registrations.
+		manager, err := s.Repos.Users.ByID(ctx, e.ManagerUserID)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		if e.DisplayName == "" || e.IsHidden || manager.Status != models.UserActive {
+			return apperr.Invalid("establishment_slug", "establishment_not_selectable")
+		}
 
 		plan, err := s.Billing.planForLimits(ctx, e.ID)
 		if err != nil {
