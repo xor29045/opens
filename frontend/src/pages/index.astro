@@ -38,11 +38,9 @@ const discover = '/decouvrir';
         </div>
       </div>
       <div class="os-mosaic" aria-hidden="true">
-        {[0, 1, 2, 3].map(() => (
+        {[1, 2, 3, 4].map((n) => (
           <div class="os-mosaic__item">
-            <div class="os-mosaic__placeholder">
-              <svg width="56" height="56" viewBox="0 0 64 64"><circle cx="32" cy="32" r="13" fill="none" stroke="currentColor" stroke-width="4" /></svg>
-            </div>
+            <img src={`/hero/hero-${n}.webp`} alt="" width="900" height="1200" loading={n <= 2 ? 'eager' : 'lazy'} decoding="async" />
           </div>
         ))}
       </div>
