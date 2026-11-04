@@ -32,6 +32,38 @@ export function saveFilters(f: Filters) {
   }
 }
 
+// The filters also live in the URL of /decouvrir (?city=75-paris&gender=F&age_min=25…)
+// so the navbar search and shared links land on a filtered deck. List keys
+// repeat (?gender=F&gender=M); range keys are integers.
+const QUERY_LISTS = ['gender', 'hair_color', 'eye_color', 'skin_tone'] as const;
+const QUERY_NUMS = ['age_min', 'age_max', 'height_min', 'height_max', 'price_min', 'price_max'] as const;
+
+/** Filters read from a query string, or null when it carries none. */
+export function filtersFromQuery(qs: URLSearchParams): Filters | null {
+  const f: Record<string, unknown> = {};
+  const city = qs.get('city');
+  if (city) f.city = city;
+  for (const k of QUERY_LISTS) {
+    const v = qs.getAll(k).filter(Boolean);
+    if (v.length) f[k] = v;
+  }
+  for (const k of QUERY_NUMS) {
+    const n = Number.parseInt(qs.get(k) ?? '', 10);
+    if (Number.isFinite(n) && n > 0) f[k] = n;
+  }
+  return Object.keys(f).length ? (f as Filters) : null;
+}
+
+/** Query string (without "?") describing the filters; empty when none. */
+export function filtersToQuery(f: Filters): string {
+  const c = compact(f);
+  const qs = new URLSearchParams();
+  if (c.city) qs.set('city', c.city);
+  for (const k of QUERY_LISTS) for (const v of c[k] ?? []) qs.append(k, v);
+  for (const k of QUERY_NUMS) if (c[k]) qs.set(k, String(c[k]));
+  return qs.toString();
+}
+
 /** Removes empty values so the request and the counter stay clean. */
 export function compact(f: Filters): Filters {
   const out: Record<string, unknown> = {};

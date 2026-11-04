@@ -6,7 +6,7 @@ import { QueryBlock } from '../dashboard/shared';
 import { api } from '../../lib/api/client';
 import { describeError } from '../../lib/api/problem';
 import { clearPassed, excluded, forget, like, pass } from '../../lib/likes';
-import DeckFilters, { countFilters, loadFilters, saveFilters, type Filters } from './DeckFilters';
+import DeckFilters, { countFilters, filtersFromQuery, filtersToQuery, loadFilters, saveFilters, type Filters } from './DeckFilters';
 import type { components } from '../../lib/api/schema';
 import { Roses } from '../../components/Rose';
 
@@ -33,8 +33,19 @@ function fetchDeck(filters: Filters, also: Iterable<string> = [], signal?: Abort
  * hides it from the deck. The last choices can be undone.
  */
 export default function SwipeDeck() {
-  const [filters, setFilters] = useState<Filters>(() => loadFilters());
+  // A query string (navbar search, shared link) wins over the filters
+  // remembered in this browser, and becomes the remembered set.
+  const [filters, setFilters] = useState<Filters>(() => {
+    const fromUrl = filtersFromQuery(new URLSearchParams(window.location.search));
+    if (fromUrl) saveFilters(fromUrl);
+    return fromUrl ?? loadFilters();
+  });
   const filterKey = useMemo(() => JSON.stringify(filters), [filters]);
+  // Keep the address bar in step with the filters (no new history entry).
+  useEffect(() => {
+    const qs = filtersToQuery(filters);
+    window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  }, [filters]);
   const first = useQuery({
     queryKey: ['discover', 'first', filterKey],
     queryFn: ({ signal }) => fetchDeck(filters, [], signal),

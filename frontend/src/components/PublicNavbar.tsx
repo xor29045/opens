@@ -2,6 +2,7 @@ import { Box, Button, Container, HStack, Link as CLink, Text } from '@chakra-ui/
 import { useStore } from '@nanostores/react';
 import { sessionAtom, homeFor } from '../lib/auth/session';
 import Providers from './Providers';
+import SearchBar from './SearchBar';
 
 // Public navigation. Each Astro island is its own React root, so it carries
 // its providers. Shows "Mon espace" only when a session exists in memory.
@@ -44,6 +45,7 @@ function NavbarInner() {
               </CLink>
             </HStack>
           </HStack>
+          <SearchBar />
           <HStack gap="2">
             {session.user ? (
               <Button asChild size="sm" colorPalette="brand">
