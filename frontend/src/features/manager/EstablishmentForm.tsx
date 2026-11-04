@@ -54,7 +54,8 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
   useEffect(() => { reset(toValues(est)); setContacts(est.contacts.map((c) => ({ ...c, is_verification_phone: c.is_verification_phone ?? false }))); }, [est]);
 
   const regionId = watch('region_id');
-  const cities = regions.filter((r) => r.kind === 'CITY' && r.parent_id === regionId);
+  // Second level of the tree: French départements (ADR-025).
+  const cities = regions.filter((r) => r.kind === 'CITY' && r.parent_id === regionId).sort((a, b) => a.slug.localeCompare(b.slug, 'fr', { numeric: true }));
 
   const save = handleSubmit(async (v) => {
     setServerError(null);
@@ -111,11 +112,11 @@ function Form({ est, regions, onSaved }: { est: Establishment; regions: Region[]
                 <Field.Label>Région</Field.Label>
                 <NativeSelect.Root><NativeSelect.Field {...register('region_id', { onChange: () => setValue('city_id', '') })}>
                   <option value="">Choisir</option>
-                  {regions.filter((r) => r.kind === 'REGION').map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {regions.filter((r) => r.kind === 'REGION').sort((a, b) => a.name.localeCompare(b.name, 'fr')).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                 </NativeSelect.Field></NativeSelect.Root>
               </Field.Root>
               <Field.Root>
-                <Field.Label>Ville</Field.Label>
+                <Field.Label>Département</Field.Label>
                 <NativeSelect.Root disabled={!regionId}><NativeSelect.Field {...register('city_id')}>
                   <option value="">Choisir</option>
                   {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

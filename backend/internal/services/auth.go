@@ -63,9 +63,6 @@ type AuthResult struct {
 type RegisterInput struct {
 	Username          string
 	Password          string
-	AcceptTerms       bool
-	AcceptCGV         bool
-	AcceptDPA         bool
 	EstablishmentSlug string
 	DisplayName       string
 }
@@ -81,9 +78,6 @@ func (s *AuthService) checkCredentials(ctx context.Context, in RegisterInput, ad
 		c.Add("password", "password_equals_username")
 	} else if s.Breach.IsBreached(ctx, in.Password) {
 		c.Add("password", "password_breached")
-	}
-	if !in.AcceptTerms {
-		c.Add("accept_terms", "required")
 	}
 	return c.Err()
 }
@@ -114,12 +108,6 @@ func (s *AuthService) createUser(ctx context.Context, u *models.User, role strin
 func (s *AuthService) RegisterManager(ctx context.Context, in RegisterInput) (*AuthResult, error) {
 	err := s.checkCredentials(ctx, in, false)
 	var c apperr.Collector
-	if !in.AcceptCGV {
-		c.Add("accept_cgv", "required")
-	}
-	if !in.AcceptDPA {
-		c.Add("accept_dpa", "required")
-	}
 	if err != nil || c.Err() != nil {
 		return nil, mergeValidation(err, c.Err())
 	}

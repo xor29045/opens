@@ -1,11 +1,11 @@
 export const eur = (cents: number | null | undefined): string =>
-  cents == null ? '—' : new Intl.NumberFormat('fr-BE', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+  cents == null ? '—' : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(cents / 100);
 
 export const dateFr = (iso: string | null | undefined): string =>
-  iso ? new Intl.DateTimeFormat('fr-BE', { dateStyle: 'medium', timeZone: 'Europe/Brussels' }).format(new Date(iso)) : '—';
+  iso ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeZone: 'Europe/Paris' }).format(new Date(iso)) : '—';
 
 export const dateTimeFr = (iso: string | null | undefined): string =>
-  iso ? new Intl.DateTimeFormat('fr-BE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Brussels' }).format(new Date(iso)) : '—';
+  iso ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Paris' }).format(new Date(iso)) : '—';
 
 /** Labels of the publication reasons returned by the API (RM-22). */
 export const reasonLabels: Record<string, string> = {

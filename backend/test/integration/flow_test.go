@@ -51,10 +51,10 @@ func TestPublicationFlow(t *testing.T) {
 	}
 	e.browse("/api/v1/establishments/" + slug).expect(http.StatusOK)
 	// Filters
-	if e.browse("/api/v1/profiles?city=ixelles&price_max=200").expect(200).JSON()["total"].(float64) != 1 {
+	if e.browse("/api/v1/profiles?city=75-paris&price_max=200").expect(200).JSON()["total"].(float64) != 1 {
 		t.Fatal("filters should match")
 	}
-	if e.browse("/api/v1/profiles?city=anvers").expect(200).JSON()["total"].(float64) != 0 {
+	if e.browse("/api/v1/profiles?city=13-bouches-du-rhone").expect(200).JSON()["total"].(float64) != 0 {
 		t.Fatal("city filter")
 	}
 	e.browse("/api/v1/profiles?sort=price%3BDROP").expect(http.StatusUnprocessableEntity)

@@ -66,11 +66,6 @@ function SecurityInner({ withCodes }: { withCodes: boolean }) {
 
   return (
     <Stack gap="6">
-      <Section title="Sessions actives" action={<Button size="xs" variant="outline" colorPalette="red" onClick={logoutAll}>Tout fermer</Button>}>
-        <QueryBlock isPending={sessions.isPending} isError={sessions.isError} error={sessions.error} onRetry={() => sessions.refetch()}>
-          <DataTable columns={columns} rows={sessions.data?.items ?? []} empty="Aucune session." caption="Sessions actives" />
-        </QueryBlock>
-      </Section>
       {withCodes && (
         <Section title="Codes de récupération">
           <QueryBlock isPending={codes.isPending} isError={codes.isError} error={codes.error} onRetry={() => codes.refetch()}>

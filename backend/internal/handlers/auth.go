@@ -44,8 +44,7 @@ func (h *Handler) RegisterManager(c *gin.Context) {
 	if !h.bind(c, &req) {
 		return
 	}
-	res, err := h.Svc.Auth.RegisterManager(c.Request.Context(), services.RegisterInput{Username: req.Username, Password: req.Password,
-		AcceptTerms: req.AcceptTerms, AcceptCGV: req.AcceptCGV, AcceptDPA: req.AcceptDPA})
+	res, err := h.Svc.Auth.RegisterManager(c.Request.Context(), services.RegisterInput{Username: req.Username, Password: req.Password})
 	if err != nil {
 		fail(c, err)
 		return

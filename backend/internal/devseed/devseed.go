@@ -49,18 +49,18 @@ type house struct {
 }
 
 var houses = []house{
-	{"rose_gerant", "Maison Rose", "Maison Rose SRL", "ixelles", "bruxelles-capitale", "Rue du Bailli 12, 1050 Ixelles",
-		"Une maison chaleureuse au cœur d’Ixelles. Accueil discret, salons feutrés et une équipe attentive.", "paid", 6, 2},
-	{"velours_gerant", "Le Velours", "Velours & Co SRL", "bruxelles", "bruxelles-capitale", "Rue Antoine Dansaert 40, 1000 Bruxelles",
-		"Ambiance tamisée, musique douce et un service à l’écoute, à deux pas de la Bourse.", "renewal_due", 5, 1},
-	{"lune_gerant", "Villa Lune", "Villa Lune SRL", "anvers", "flandre", "Lange Nieuwstraat 8, 2000 Antwerpen",
-		"Une villa élégante près de la cathédrale. Jardin intérieur et suites privées.", "paid", 5, 0},
-	{"jade_gerant", "Le Jardin de Jade", "Jardin de Jade SRL", "gand", "flandre", "Veldstraat 21, 9000 Gent",
-		"Inspiration zen et massages. Une parenthèse calme au centre de Gand.", "paid", 4, 1},
-	{"opale_gerant", "L’Opale", "Opale Liège SRL", "liege", "wallonie", "Rue Pont d’Avroy 5, 4000 Liège",
-		"La maison liégeoise des soirées raffinées.", "past_due", 4, 0},
-	{"nacre_gerant", "Maison Nacre", "Nacre SRL", "namur", "wallonie", "",
-		"Nouvelle maison namuroise, ouverture prochaine.", "none", 3, 2},
+	{"rose_gerant", "Maison Rose", "Maison Rose SAS", "75-paris", "ile-de-france", "12 rue des Martyrs, 75009 Paris",
+		"Une maison chaleureuse au pied de Montmartre. Accueil discret, salons feutrés et une équipe attentive.", "paid", 6, 2},
+	{"velours_gerant", "Le Velours", "Velours & Co SAS", "75-paris", "ile-de-france", "40 rue Saint-Denis, 75002 Paris",
+		"Ambiance tamisée, musique douce et un service à l’écoute, au cœur du Sentier.", "renewal_due", 5, 1},
+	{"lune_gerant", "Villa Lune", "Villa Lune SAS", "69-rhone", "auvergne-rhone-alpes", "8 rue Mercière, 69002 Lyon",
+		"Une villa élégante sur la presqu’île. Jardin intérieur et suites privées.", "paid", 5, 0},
+	{"jade_gerant", "Le Jardin de Jade", "Jardin de Jade SAS", "33-gironde", "nouvelle-aquitaine", "21 rue Sainte-Catherine, 33000 Bordeaux",
+		"Inspiration zen et massages. Une parenthèse calme au centre de Bordeaux.", "paid", 4, 1},
+	{"opale_gerant", "L’Opale", "Opale Marseille SAS", "13-bouches-du-rhone", "provence-alpes-cote-d-azur", "5 cours Julien, 13006 Marseille",
+		"La maison marseillaise des soirées raffinées.", "past_due", 4, 0},
+	{"nacre_gerant", "Maison Nacre", "Nacre SAS", "59-nord", "hauts-de-france", "",
+		"Nouvelle maison lilloise, ouverture prochaine.", "none", 3, 2},
 }
 
 var names = []string{"Lola", "Mia", "Nina", "Jade", "Inès", "Clara", "Zoé", "Léa", "Sofia", "Eva", "Maya", "Alba", "Lina", "Romy",
@@ -152,8 +152,7 @@ func ptr[T any](v T) *T { return &v }
 // subscription. It returns the published profile ids.
 func (sd *seeder) house(ctx context.Context, idx int, h house) ([]uuid.UUID, error) {
 	s := sd.s
-	res, err := s.Auth.RegisterManager(ctx, services.RegisterInput{Username: h.username, Password: Password,
-		AcceptTerms: true, AcceptCGV: true, AcceptDPA: true})
+	res, err := s.Auth.RegisterManager(ctx, services.RegisterInput{Username: h.username, Password: Password})
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +178,7 @@ func (sd *seeder) house(ctx context.Context, idx int, h house) ([]uuid.UUID, err
 		AddressPublic: idx%2 == 0}); err != nil {
 		return nil, err
 	}
-	phone := func(n int) string { return fmt.Sprintf("+32 47%d %02d %02d %02d", idx, 10+n, 20+idx, 30+n) }
+	phone := func(n int) string { return fmt.Sprintf("+33 6 %d%d %02d %02d %02d", idx, n, 10+n, 20+idx, 30+n) }
 	if _, err := s.Establishments.ReplaceContacts(mctx, mgr, []services.ContactInput{
 		{Type: "PHONE", Value: phone(1), Visibility: models.VisibilityPublic},
 		{Type: "WHATSAPP", Value: phone(2), Visibility: models.VisibilityPublic},
@@ -289,7 +288,7 @@ func (sd *seeder) professional(ctx context.Context, mgr *rbac.Actor, h house, i 
 		return uuid.Nil, err
 	}
 	if _, err := s.Profiles.ReplaceContacts(pctx, pro, p.ID, []services.ContactInput{
-		{Type: "WHATSAPP", Value: fmt.Sprintf("+32 48%d %02d %02d %02d", r.Intn(10), r.Intn(90)+10, r.Intn(90)+10, r.Intn(90)+10), Visibility: models.VisibilityPublic},
+		{Type: "WHATSAPP", Value: fmt.Sprintf("+33 7 %02d %02d %02d %02d", r.Intn(90)+10, r.Intn(90)+10, r.Intn(90)+10, r.Intn(90)+10), Visibility: models.VisibilityPublic},
 		{Type: "INSTAGRAM", Value: "https://www.instagram.com/" + username, Visibility: models.VisibilityPublic},
 	}); err != nil {
 		return uuid.Nil, err

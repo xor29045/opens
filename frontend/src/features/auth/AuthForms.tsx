@@ -40,9 +40,6 @@ function safeNext(next: string | null | undefined): string | null {
 function AuthInner({ kind, mode, next }: Props) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [acceptTerms, setAcceptTerms] = useState(false);
-  const [acceptCGV, setAcceptCGV] = useState(false);
-  const [acceptDPA, setAcceptDPA] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -61,7 +58,7 @@ function AuthInner({ kind, mode, next }: Props) {
         });
       } else {
         res = await api<AuthResponse>('/auth/register/manager', {
-          method: 'POST', auth: false, body: { username, password, accept_terms: acceptTerms, accept_cgv: acceptCGV, accept_dpa: acceptDPA },
+          method: 'POST', auth: false, body: { username, password },
         });
       }
       sessionStore.set({ token: res.access_token, user: res.user, expiresAt: res.expires_at });
@@ -118,29 +115,6 @@ function AuthInner({ kind, mode, next }: Props) {
         <Input type="password" name="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} required />
         {fieldErrors.password ? <Field.ErrorText>{fieldErrors.password}</Field.ErrorText> : isRegister && <Field.HelperText>12 caractères minimum. Pas de règles de composition : une phrase longue est idéale.</Field.HelperText>}
       </Field.Root>
-      {isRegister && (
-        <Stack gap="3">
-          <Checkbox.Root checked={acceptTerms} onCheckedChange={(d) => setAcceptTerms(d.checked === true)} invalid={!!fieldErrors.accept_terms}>
-            <Checkbox.HiddenInput />
-            <Checkbox.Control />
-            <Checkbox.Label>J’ai 18 ans ou plus et j’accepte les <a href="/legal/cgu">CGU</a>.</Checkbox.Label>
-          </Checkbox.Root>
-          {kind === 'manager' && (
-            <>
-              <Checkbox.Root checked={acceptCGV} onCheckedChange={(d) => setAcceptCGV(d.checked === true)}>
-                <Checkbox.HiddenInput />
-                <Checkbox.Control />
-                <Checkbox.Label>J’accepte les <a href="/legal/cgv">CGV</a>.</Checkbox.Label>
-              </Checkbox.Root>
-              <Checkbox.Root checked={acceptDPA} onCheckedChange={(d) => setAcceptDPA(d.checked === true)}>
-                <Checkbox.HiddenInput />
-                <Checkbox.Control />
-                <Checkbox.Label>J’accepte le <a href="/legal/dpa">contrat de sous-traitance (DPA)</a> pour les données de mes salarié·es.</Checkbox.Label>
-              </Checkbox.Root>
-            </>
-          )}
-        </Stack>
-      )}
       {error && <Text color="danger" role="alert">{error}</Text>}
       <Button type="submit" colorPalette="brand" loading={busy} disabled={busy}>
         {isRegister ? 'Créer le compte' : 'Se connecter'}

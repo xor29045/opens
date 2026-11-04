@@ -101,7 +101,7 @@ function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void })
               <Grid templateColumns={{ base: '1fr', md: '1fr 1fr' }} gap="2" fontSize="sm">
                 <Text>Raison sociale : {e.legal_name || '—'}</Text>
                 <Text>Gérant : {q.data.manager.username} ({q.data.manager.status})</Text>
-                <Text>Ville : {e.city?.name ?? '—'}</Text>
+                <Text>Département : {e.city?.name ?? '—'}</Text>
                 <Text>Numéro pour la plateforme : {verif ? <Code>{verif.value}</Code> : '—'}</Text>
                 <Text>Créé le : {dateFr(e.created_at)}</Text>
                 <Text>Abonnement : {q.data.subscription ? <StatusBadge value={q.data.subscription.status} /> : 'aucun'}</Text>

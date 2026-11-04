@@ -526,8 +526,17 @@ img {
   text-decoration: none;
   color: var(--os-text);
 }
-.os-wordmark span {
-  color: var(--os-accent);
+.os-wordmark {
+  display: inline-flex;
+  align-items: center;
+}
+/* The leg logo replaces the dot between "Open" and "sex". */
+.os-wordmark__logo {
+  width: 1.3em;
+  height: 1.3em;
+  margin: 0 1px;
+  margin-top: 8px;
+  border-radius: 0.26em;
 }
 
 /* ------------------------------------------------------------ age gate */
@@ -801,5 +810,12 @@ img {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Mobile + tablette : on cache le footer */
+@media (max-width: 1023px) {
+  .os-footer {
+    display: none;
   }
 }

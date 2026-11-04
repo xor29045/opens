@@ -30,7 +30,7 @@ function NavbarInner() {
         <HStack justify="space-between" h="16" gap="6">
           <HStack gap="8">
             <a href="/" className="os-wordmark" aria-label="Opensex — accueil">
-              Open<span>•</span>sex
+              Open<img className="os-wordmark__logo" src="/icon-192.png" alt="" width={28} height={28} />sex
             </a>
             <HStack as="nav" aria-label="Navigation principale" gap="6" display={{ base: 'none', md: 'flex' }}>
               <CLink href="/decouvrir" fontSize="sm" color="fg.muted" _hover={{ color: 'fg', textDecoration: 'none' }}>

@@ -30,7 +30,7 @@ func TestDevSeed(t *testing.T) {
 	if cat["total"].(float64) < 15 {
 		t.Fatalf("catalogue too small: %v", cat["total"])
 	}
-	e.browse("/api/v1/profiles?city=anvers").expect(http.StatusOK)
+	e.browse("/api/v1/profiles?city=13-bouches-du-rhone").expect(http.StatusOK)
 
 	// Manager dashboards: overview, stats, billing.
 	m := e.login("rose_gerant", devseed.Password).expect(http.StatusOK).JSON()["access_token"].(string)

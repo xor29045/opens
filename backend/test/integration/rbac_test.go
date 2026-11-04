@@ -54,14 +54,12 @@ func TestRBACCoverage(t *testing.T) {
 // Scenario 5: a "role" field is ignored.
 func TestRoleFieldIgnored(t *testing.T) {
 	e := newEnv(t)
-	r := e.post("/api/v1/auth/register/manager", "", map[string]any{"username": "sneaky", "password": pwd, "accept_terms": true,
-		"accept_cgv": true, "accept_dpa": true, "role": "ADMIN"}).expect(http.StatusCreated)
+	r := e.post("/api/v1/auth/register/manager", "", map[string]any{"username": "sneaky", "password": pwd, "role": "ADMIN"}).expect(http.StatusCreated)
 	if role := r.JSON()["user"].(map[string]any)["role"]; role != models.RoleManager {
 		t.Fatalf("role = %v", role)
 	}
 	// Unknown fields are rejected.
-	e.post("/api/v1/auth/register/manager", "", map[string]any{"username": "x12", "password": pwd, "accept_terms": true,
-		"accept_cgv": true, "accept_dpa": true, "is_admin": true}).
+	e.post("/api/v1/auth/register/manager", "", map[string]any{"username": "x12", "password": pwd, "is_admin": true}).
 		expect(http.StatusUnprocessableEntity)
 }
 

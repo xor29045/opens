@@ -10,11 +10,8 @@ import (
 )
 
 type RegisterManagerRequest struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	AcceptTerms bool   `json:"accept_terms"`
-	AcceptCGV   bool   `json:"accept_cgv"`
-	AcceptDPA   bool   `json:"accept_dpa"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type LoginRequest struct {

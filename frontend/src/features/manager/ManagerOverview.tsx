@@ -68,23 +68,6 @@ function OverviewBody({ o }: { o: Overview }) {
             <Button asChild size="sm" variant="outline"><a href="/gerant/dashboard/etablissement">Modifier la fiche</a></Button>
           </HStack>
         </Section>
-        <Section title="Accès des professionnel·les" action={<Button asChild size="xs" colorPalette="brand"><a href="/gerant/dashboard/profils">Créer une professionnelle</a></Button>}>
-          <Text fontSize="sm" color="fg.muted" mb="3">
-            Tu crées chaque profil avec un pseudo et un mot de passe ; la professionnelle se connecte sur /pro/login.
-          </Text>
-          {withoutLogin.length === 0 ? (
-            <Text color="fg.muted">Tous les profils ont leurs identifiants.</Text>
-          ) : (
-            <Stack gap="2">
-              {withoutLogin.map((p) => (
-                <HStack key={p.id} justify="space-between">
-                  <Text>{p.display_name} <Text as="span" fontSize="xs" color="fg.muted">· sans identifiants</Text></Text>
-                  <Button asChild size="xs" variant="outline"><a href={`/gerant/dashboard/profils/${p.id}`}>Créer ses accès</a></Button>
-                </HStack>
-              ))}
-            </Stack>
-          )}
-        </Section>
       </Grid>
       <Section title={`Professionnel·les (${o.profiles.length})`} action={<Button asChild size="xs" variant="outline"><a href="/gerant/dashboard/profils">Gérer</a></Button>}>
         <DataTable columns={columns} rows={o.profiles} empty="Aucun·e professionnel·le pour le moment." caption="Liste des profils" />

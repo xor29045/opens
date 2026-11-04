@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, Badge, Button, HStack, Stack, Text, Grid, Field, NativeSelect } from '@chakra-ui/react';
+import { Alert, Badge, Button, HStack, Stack, Text, Grid, NativeSelect } from '@chakra-ui/react';
 import Providers from '../../components/Providers';
 import Pagination from '../../components/Pagination';
 import { Section, StatusBadge } from '../../components/ui';
@@ -54,12 +54,14 @@ function Reminder({ v }: { v: SubscriptionView }) {
 function SubscriptionInner() {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [planCode, setPlanCode] = useState('');
   const [page, setPage] = useState(1);
   const sub = useQuery({ queryKey: ['billing', 'subscription'], queryFn: ({ signal }) => api<SubscriptionView>('/billing/subscription', { signal }) });
   const plans = useQuery({ queryKey: ['billing', 'plans'], queryFn: ({ signal }) => api<{ items: Plan[] }>('/billing/plans', { auth: false, signal }) });
   const payments = useQuery({ queryKey: ['billing', 'payments', page], queryFn: ({ signal }) => api<PageOf<Payment>>(`/billing/payments?page=${page}`, { signal }) });
   const refresh = () => qc.invalidateQueries({ queryKey: ['billing'] });
+
+  // Formule unique : on prend la première de la liste.
+  const plan = plans.data?.items?.[0];
 
   const call = async (path: string, body?: unknown) => {
     setError(null);
@@ -122,19 +124,24 @@ function SubscriptionInner() {
               <Stack gap="3">
                 <Text>Aucun abonnement. Souscris pour publier les profils de ta maison.</Text>
                 <QueryBlock isPending={plans.isPending} isError={plans.isError} error={plans.error} onRetry={() => plans.refetch()}>
-                  <HStack align="flex-end">
-                    <Field.Root w="72">
-                      <Field.Label>Formule</Field.Label>
-                      <NativeSelect.Root><NativeSelect.Field value={planCode} onChange={(e) => setPlanCode(e.target.value)}>
-                        <option value="">Formule par défaut</option>
-                        {(plans.data?.items ?? []).map((p) => <option key={p.code} value={p.code}>{p.name} — {eur(p.amount_cents)}</option>)}
-                      </NativeSelect.Field></NativeSelect.Root>
-                    </Field.Root>
-                    <Button colorPalette="brand" onClick={() => call('/billing/subscription', planCode ? { plan_code: planCode } : {}).then(goToInvoice).catch(() => undefined)}>
-                      Souscrire et payer
-                    </Button>
-                  </HStack>
-                  <Text fontSize="sm" color="fg.muted">Prix en euros, réglé en cryptomonnaie via NOWPayments au taux fixé à la création de la facture.</Text>
+                  {plan ? (
+                    <>
+                      <HStack justify="space-between" align="center" wrap="wrap" gap="3">
+                        <Text fontWeight="semibold">{plan.name} — {eur(plan.amount_cents)}</Text>
+                        <Button
+                          colorPalette="brand"
+                          onClick={() => call('/billing/subscription', { plan_code: plan.code }).then(goToInvoice).catch(() => undefined)}
+                        >
+                          Souscrire et payer
+                        </Button>
+                      </HStack>
+                      <Text fontSize="sm" color="fg.muted">
+                        Prix en euros, réglé en cryptomonnaie via NOWPayments au taux fixé à la création de la facture.
+                      </Text>
+                    </>
+                  ) : (
+                    <Text color="fg.muted">Aucune formule disponible pour le moment.</Text>
+                  )}
                 </QueryBlock>
               </Stack>
             )}

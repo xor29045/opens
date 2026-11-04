@@ -114,10 +114,10 @@ func TestDiscoverFilters(t *testing.T) {
 			t.Errorf("%s: %v", name, ids)
 		}
 	}
-	if ids := only(map[string]any{"city": "ixelles", "price_max": 200}); len(ids) != 2 {
+	if ids := only(map[string]any{"city": "75-paris", "price_max": 200}); len(ids) != 2 {
 		t.Errorf("city+price: %v", ids)
 	}
-	if ids := only(map[string]any{"city": "anvers"}); len(ids) != 0 {
+	if ids := only(map[string]any{"city": "13-bouches-du-rhone"}); len(ids) != 0 {
 		t.Errorf("other city: %v", ids)
 	}
 	if ids := only(map[string]any{"price_max": 100}); len(ids) != 0 {

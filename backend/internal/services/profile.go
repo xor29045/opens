@@ -333,7 +333,7 @@ type AccountInput struct {
 // newProfessionalAccount validates and hashes the credentials chosen by the
 // manager. The account is created inside the caller's transaction.
 func (s *ProfileService) newProfessionalAccount(ctx context.Context, acc AccountInput) (*models.User, error) {
-	in := RegisterInput{Username: strings.TrimSpace(acc.Username), Password: acc.Password, AcceptTerms: true}
+	in := RegisterInput{Username: strings.TrimSpace(acc.Username), Password: acc.Password}
 	if err := s.Auth.checkCredentials(ctx, in, false); err != nil {
 		return nil, err
 	}

@@ -49,7 +49,7 @@ const codeMessages: Record<string, string> = {
   password_breached: 'Ce mot de passe figure dans une liste de mots de passe compromis.',
   password_equals_username: 'Le mot de passe ne peut pas être le pseudo.',
   password_unchanged: 'Choisis un mot de passe différent de l’actuel.',
-  invalid_phone: 'Numéro de téléphone invalide (format international, ex. +32 470 12 34 56).',
+  invalid_phone: 'Numéro de téléphone invalide (format international, ex. +33 6 12 34 56 78).',
   invalid_url: 'Lien invalide (https uniquement).',
   invalid_url_domain: 'Le lien doit pointer vers le réseau social correspondant.',
   invalid_opening_hours: 'Horaires invalides.',

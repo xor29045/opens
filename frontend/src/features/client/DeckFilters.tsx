@@ -67,7 +67,7 @@ export default function DeckFilters({ value, onApply }: { value: Filters; onAppl
     queryFn: ({ signal }) => api<{ items: Region[] }>('/regions', { auth: false, signal }),
     staleTime: 3_600_000,
   });
-  const cities = (regions.data?.items ?? []).filter((r) => r.kind === 'CITY' && r.is_active).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  const cities = (regions.data?.items ?? []).filter((r) => r.kind === 'CITY' && r.is_active).sort((a, b) => a.slug.localeCompare(b.slug, 'fr', { numeric: true }));
   const active = countFilters(value);
 
   const toggle = (key: ListKey, v: string) => {
@@ -102,10 +102,10 @@ export default function DeckFilters({ value, onApply }: { value: Filters; onAppl
         <Box as="form" id="deck-filters" onSubmit={apply} mt="3" p="4" borderWidth="1px" borderColor="border" borderRadius="xl" bg="bg.subtle">
           <Stack gap="4">
             <Field.Root>
-              <Field.Label>Ville</Field.Label>
+              <Field.Label>Département</Field.Label>
               <NativeSelect.Root size="sm" disabled={regions.isPending}>
                 <NativeSelect.Field value={draft.city ?? ''} onChange={(e) => setDraft({ ...draft, city: e.target.value || undefined })}>
-                  <option value="">Toutes les villes</option>
+                  <option value="">Tous les départements</option>
                   {cities.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}
                 </NativeSelect.Field>
               </NativeSelect.Root>

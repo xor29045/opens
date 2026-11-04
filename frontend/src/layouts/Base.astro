@@ -25,7 +25,10 @@ const hasSession = Astro.cookies.has('__Host-rt') || Astro.cookies.has('rt');
     {noindex && <meta name="robots" content="noindex,nofollow" />}
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="os-session" content={hasSession ? '1' : '0'} />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>{title} · Opensex</title>
   </head>
   <body>

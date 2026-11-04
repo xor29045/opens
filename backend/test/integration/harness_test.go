@@ -271,10 +271,7 @@ func (e *env) browse(path string) *resp {
 func (e *env) register(kind string, extra map[string]any) account {
 	e.t.Helper()
 	name := uniq(kind)
-	body := map[string]any{"username": name, "password": pwd, "accept_terms": true}
-	if kind == "manager" {
-		body["accept_cgv"], body["accept_dpa"] = true, true
-	}
+	body := map[string]any{"username": name, "password": pwd}
 	for k, v := range extra {
 		body[k] = v
 	}
@@ -294,8 +291,8 @@ func (e *env) login(username, password string) *resp {
 
 func regionCity(e *env) (string, string) {
 	var region, city struct{ ID string }
-	e.db.Gorm.Raw(`SELECT id::text AS id FROM regions WHERE slug = 'bruxelles-capitale'`).Scan(&region)
-	e.db.Gorm.Raw(`SELECT id::text AS id FROM regions WHERE slug = 'ixelles'`).Scan(&city)
+	e.db.Gorm.Raw(`SELECT id::text AS id FROM regions WHERE slug = 'ile-de-france'`).Scan(&region)
+	e.db.Gorm.Raw(`SELECT id::text AS id FROM regions WHERE slug = '75-paris'`).Scan(&city)
 	return region.ID, city.ID
 }
 

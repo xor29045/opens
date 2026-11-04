@@ -112,7 +112,7 @@ function ProfileForm({ mode, id, profile }: { mode: 'manager' | 'professional'; 
       <Section title="Publication" action={<StatusBadge value={profile.status} />}>
         <Stack gap="2">
           {profile.publication.published ? (
-            <Text color="success">Ce profil est publié{profile.publication.published_at ? ` depuis le ${new Date(profile.publication.published_at).toLocaleDateString('fr-BE')}` : ''}.</Text>
+            <Text color="success">Ce profil est publié{profile.publication.published_at ? ` depuis le ${new Date(profile.publication.published_at).toLocaleDateString('fr-FR')}` : ''}.</Text>
           ) : (
             <>
               <Text color="fg.muted">Non publié. Raisons :</Text>
