@@ -22,13 +22,9 @@ const discover = '/decouvrir';
       <div>
         <span class="os-eyebrow">Maisons partenaires</span>
         <h1 id="hero-title" class="os-title os-title--xl">
-          Des rencontres choisies,<br />dans des maisons <em>de confiance</em>.
+          Trouve le bonheur<br /><em>dans ta ville</em>.
         </h1>
-        <p class="os-lead">
-          Parcours les profils des professionnel·les des maisons présentes sur la plateforme.
-          Tes recherches restent discrètes.
-        </p>
-        <p class="os-lead">Aucun compte à créer : like ou passe les profils, tes favoris restent dans ton navigateur.</p>
+        <p class="os-lead">Envie de te vider les couilles ?</p>
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px;">
           <a class="os-btn os-btn--primary" href={discover}>Découvrir les profils</a>
           <a class="os-btn os-btn--ghost" href="/favoris">Mes favoris</a>
@@ -38,9 +34,19 @@ const discover = '/decouvrir';
         </div>
       </div>
       <div class="os-mosaic" aria-hidden="true">
-        {[1, 2, 3, 4].map((n) => (
+        {[0, 1, 2, 3].map((frame) => (
           <div class="os-mosaic__item">
-            <img src={`/hero/hero-${n}.webp`} alt="" width="900" height="1200" loading={n <= 2 ? 'eager' : 'lazy'} decoding="async" />
+            {[0, 1, 2].map((slide) => (
+              <img
+                src={`/hero/hero-${frame + 1 + slide * 4}.webp`}
+                alt=""
+                width="900"
+                height="1200"
+                loading={slide === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+                style={`--os-delay: ${slide * 5 - frame * 1.25}s`}
+              />
+            ))}
           </div>
         ))}
       </div>

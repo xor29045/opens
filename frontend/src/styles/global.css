@@ -233,10 +233,27 @@ img {
 .os-mosaic__item:nth-child(4) {
   transform: translateY(36px);
 }
+/* Each frame stacks three photos that cross-fade in turn (15 s loop, 5 s
+   each); frames are offset so they never change at the same time. */
+.os-mosaic__item {
+  position: relative;
+}
 .os-mosaic__item img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  animation: os-mosaic-fade 15s infinite;
+  animation-delay: var(--os-delay, 0s);
+}
+@keyframes os-mosaic-fade {
+  0% { opacity: 0; }
+  4% { opacity: 1; }
+  33.3% { opacity: 1; }
+  37.3% { opacity: 0; }
+  100% { opacity: 0; }
 }
 .os-mosaic__placeholder {
   display: grid;
@@ -679,8 +696,17 @@ img {
   .os-split {
     grid-template-columns: 1fr;
   }
+  /* Mobile: the four photos sit side by side in one compact row. */
   .os-mosaic {
-    display: none;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .os-mosaic__item {
+    border-radius: var(--os-radius);
+  }
+  .os-mosaic__item:nth-child(2),
+  .os-mosaic__item:nth-child(4) {
+    transform: none;
   }
   .os-section {
     padding: 52px 0;
@@ -724,5 +750,15 @@ img {
 @media (max-width: 1023px) {
   .os-footer {
     display: none;
+  }
+}
+
+/* Reduced motion: no slideshow, show the first photo of each frame. */
+@media (prefers-reduced-motion: reduce) {
+  .os-mosaic__item img {
+    animation: none !important;
+  }
+  .os-mosaic__item img:first-child {
+    opacity: 1;
   }
 }
