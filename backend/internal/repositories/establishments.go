@@ -120,14 +120,3 @@ func (r *EstablishmentRepo) AdminList(ctx context.Context, f EstablishmentFilter
 		Order("e.created_at DESC").Offset(p.Offset()).Limit(p.PageSize).Scan(&out).Error
 	return out, total, err
 }
-
-func (r *EstablishmentRepo) Region(ctx context.Context, id *uuid.UUID) (*models.Region, error) {
-	if id == nil {
-		return nil, nil
-	}
-	var reg models.Region
-	if err := r.db(ctx).Where("id = ?", *id).Take(&reg).Error; err != nil {
-		return nil, err
-	}
-	return &reg, nil
-}

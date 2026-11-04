@@ -53,9 +53,8 @@ type Config struct {
 	Argon2MaxConcurrent int
 	HIBPEnabled         bool
 
-	FieldEncryptionKeys string
-	IPHashKey           []byte
-	RecoveryCodeKey     []byte
+	IPHashKey       []byte
+	RecoveryCodeKey []byte
 
 	CORSAllowedOrigins []string
 	TrustedProxies     []string
@@ -219,7 +218,6 @@ func Load() (*Config, error) {
 	c.Argon2MaxConcurrent = l.int("ARGON2_MAX_CONCURRENT", 8)
 	c.HIBPEnabled = l.bool("HIBP_ENABLED", !c.IsDev())
 
-	c.FieldEncryptionKeys = l.required("FIELD_ENCRYPTION_KEYS", l.secret("FIELD_ENCRYPTION_KEYS"))
 	c.IPHashKey = l.key("IP_HASH_KEY", 32)
 	c.RecoveryCodeKey = l.key("RECOVERY_CODE_HMAC_KEY", 32)
 
@@ -287,11 +285,6 @@ func Load() (*Config, error) {
 	}
 	c.AdminAlertWebhookURL = l.str("ADMIN_ALERT_WEBHOOK_URL", "")
 
-	if c.FieldEncryptionKeys != "" {
-		if _, err := crypto.NewFieldEncryptor(c.FieldEncryptionKeys); err != nil {
-			l.errs = append(l.errs, "FIELD_ENCRYPTION_KEYS: "+err.Error())
-		}
-	}
 	c.validateSafety(l)
 	if len(l.errs) > 0 {
 		return nil, errors.New("invalid configuration:\n  - " + strings.Join(l.errs, "\n  - "))

@@ -394,6 +394,10 @@ func (s *ProfileService) CreateByManager(ctx context.Context, actor *rbac.Actor,
 		if err := s.Repos.Profiles.Update(ctx, p.ID, cols); err != nil {
 			return apperr.Internal(err)
 		}
+		// A profile created ACTIVE by a subscribed house is published at once.
+		if err := s.Publication.Recompute(ctx, p.EstablishmentID); err != nil {
+			return err
+		}
 		p, err = s.Repos.Profiles.ByID(ctx, p.ID)
 		if err != nil {
 			return apperr.Internal(err)
@@ -810,16 +814,6 @@ func (s *ProfileService) photoViews(ctx context.Context, profileID uuid.UUID) ([
 }
 
 // ---------------------------------------------------------------- manager-only lifecycle
-
-// AgeAt returns the age in full years (used for the age shown on cards when
-// the platform holds a birth date, e.g. demo data).
-func AgeAt(birth, now time.Time) int {
-	age := now.Year() - birth.Year()
-	if now.Month() < birth.Month() || (now.Month() == birth.Month() && now.Day() < birth.Day()) {
-		age--
-	}
-	return age
-}
 
 // Activate moves a DRAFT or ARCHIVED profile to ACTIVE.
 func (s *ProfileService) Activate(ctx context.Context, actor *rbac.Actor, id uuid.UUID) (*ProfileDetail, error) {

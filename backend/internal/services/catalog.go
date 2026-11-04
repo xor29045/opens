@@ -12,14 +12,11 @@ import (
 	"opensex/backend/internal/rbac"
 	"opensex/backend/internal/repositories"
 	"opensex/backend/internal/validators"
-	"opensex/backend/pkg/ratelimit"
 )
 
 // CatalogService serves the public catalogue. Contact details are filtered
 // server-side according to their visibility and the viewer (RM-40 to RM-43).
 type CatalogService struct{ *Services }
-
-var LimitClientContacts = []ratelimit.Limit{ratelimit.PerHour(60)}
 
 type viewMode int
 
@@ -77,28 +74,26 @@ type ProfileCard struct {
 }
 
 type PublicProfile struct {
-	ID                  uuid.UUID              `json:"id"`
-	Slug                string                 `json:"slug"`
-	DisplayName         string                 `json:"display_name"`
-	Headline            string                 `json:"headline"`
-	Description         string                 `json:"description"`
-	Age                 *int16                 `json:"age"`
-	HeightCm            *int16                 `json:"height_cm"`
-	WeightKg            *int16                 `json:"weight_kg"`
-	HairColor           *string                `json:"hair_color"`
-	EyeColor            *string                `json:"eye_color"`
-	BodyType            *string                `json:"body_type"`
-	Languages           []string               `json:"languages"`
-	ExtraAttributes     models.JSON            `json:"extra_attributes"`
-	PriceFromCents      *int64                 `json:"price_from_cents"`
-	Photos              []PublicPhoto          `json:"photos"`
-	Rates               []PublicRate           `json:"rates"`
-	Categories          []PublicCategory       `json:"categories"`
-	Contacts            []PublicContact        `json:"contacts"`
-	ContactsRestricted  bool                   `json:"contacts_restricted"`
-	ContactsRateLimited bool                   `json:"contacts_rate_limited,omitempty"`
-	Establishment       PublicEstablishmentRef `json:"establishment"`
-	Published           bool                   `json:"published"`
+	ID              uuid.UUID              `json:"id"`
+	Slug            string                 `json:"slug"`
+	DisplayName     string                 `json:"display_name"`
+	Headline        string                 `json:"headline"`
+	Description     string                 `json:"description"`
+	Age             *int16                 `json:"age"`
+	HeightCm        *int16                 `json:"height_cm"`
+	WeightKg        *int16                 `json:"weight_kg"`
+	HairColor       *string                `json:"hair_color"`
+	EyeColor        *string                `json:"eye_color"`
+	BodyType        *string                `json:"body_type"`
+	Languages       []string               `json:"languages"`
+	ExtraAttributes models.JSON            `json:"extra_attributes"`
+	PriceFromCents  *int64                 `json:"price_from_cents"`
+	Photos          []PublicPhoto          `json:"photos"`
+	Rates           []PublicRate           `json:"rates"`
+	Categories      []PublicCategory       `json:"categories"`
+	Contacts        []PublicContact        `json:"contacts"`
+	Establishment   PublicEstablishmentRef `json:"establishment"`
+	Published       bool                   `json:"published"`
 }
 
 func place(slug, name *string) *PublicPlace {
@@ -187,20 +182,6 @@ func (s *CatalogService) cards(ctx context.Context, rows []repositories.CatalogR
 	return out, nil
 }
 
-// canSeeClientContacts implements RM-40/RM-43 for a given establishment.
-func canSeeClientContacts(actor *rbac.Actor, establishmentID uuid.UUID) bool {
-	if actor == nil {
-		return false
-	}
-	switch actor.Role {
-	case models.RoleAdmin:
-		return true
-	case models.RoleManager, models.RoleProfessional:
-		return actor.EstablishmentID == establishmentID
-	}
-	return false
-}
-
 // ProfileBySlug returns a published profile (404 otherwise).
 func (s *CatalogService) ProfileBySlug(ctx context.Context, slug string) (*PublicProfile, error) {
 	p, err := s.Repos.Profiles.BySlug(ctx, slug)
@@ -265,7 +246,7 @@ func (s *CatalogService) build(ctx context.Context, p *models.Profile, mode view
 	for i, c := range contacts {
 		generic[i] = genericContact{c.Type, c.Value, c.Visibility, false}
 	}
-	out.Contacts, out.ContactsRestricted, out.ContactsRateLimited = s.filterContacts(ctx, generic, e.ID, p.ID, mode)
+	out.Contacts = s.filterContacts(ctx, generic, p.ID, mode)
 	return out, nil
 }
 
@@ -274,22 +255,12 @@ type genericContact struct {
 	VerificationPhone       bool
 }
 
-// filterContacts removes every contact the viewer may not see. It reports
-// whether restricted contacts exist but were withheld.
-func (s *CatalogService) filterContacts(ctx context.Context, cs []genericContact, establishmentID, statsProfile uuid.UUID, mode viewMode) ([]PublicContact, bool, bool) {
-	actor := rbac.ActorFrom(ctx)
-	allowClients := mode == viewPreview || canSeeClientContacts(actor, establishmentID)
-	// There are no client accounts anymore (ADR-023): "CLIENTS" contacts are
-	// only shown to the house itself and the platform.
-	rateLimited := false
+// filterContacts removes the hidden contacts and the platform's
+// verification phone. The preview shows each contact's visibility.
+func (s *CatalogService) filterContacts(ctx context.Context, cs []genericContact, statsProfile uuid.UUID, mode viewMode) []PublicContact {
 	out := []PublicContact{}
-	restricted := false
 	for _, c := range cs {
 		if c.VerificationPhone || c.Visibility == models.VisibilityHidden {
-			continue
-		}
-		if c.Visibility == models.VisibilityClients && !allowClients {
-			restricted = true
 			continue
 		}
 		pc := PublicContact{Type: c.Type, Value: c.Value}
@@ -299,10 +270,10 @@ func (s *CatalogService) filterContacts(ctx context.Context, cs []genericContact
 		out = append(out, pc)
 	}
 	// Contact views are counted for visitors only, not for staff.
-	if mode == viewPublic && statsProfile != uuid.Nil && actor == nil && len(out) > 0 {
+	if mode == viewPublic && statsProfile != uuid.Nil && rbac.ActorFrom(ctx) == nil && len(out) > 0 {
 		s.Stats.RecordContactView(ctx, statsProfile)
 	}
-	return out, restricted, rateLimited
+	return out
 }
 
 func (s *CatalogService) establishmentRef(ctx context.Context, e *models.Establishment) (*PublicEstablishmentRef, error) {
@@ -326,12 +297,11 @@ func (s *CatalogService) establishmentRef(ctx context.Context, e *models.Establi
 
 type PublicEstablishment struct {
 	PublicEstablishmentRef
-	Description        string          `json:"description"`
-	OpeningHours       models.JSON     `json:"opening_hours"`
-	Address            *string         `json:"address"`
-	Contacts           []PublicContact `json:"contacts"`
-	ContactsRestricted bool            `json:"contacts_restricted"`
-	Profiles           []ProfileCard   `json:"profiles"`
+	Description  string          `json:"description"`
+	OpeningHours models.JSON     `json:"opening_hours"`
+	Address      *string         `json:"address"`
+	Contacts     []PublicContact `json:"contacts"`
+	Profiles     []ProfileCard   `json:"profiles"`
 }
 
 // EstablishmentBySlug returns the public page of a verified, entitled establishment.
@@ -366,7 +336,7 @@ func (s *CatalogService) EstablishmentBySlug(ctx context.Context, slug string) (
 	for i, c := range contacts {
 		generic[i] = genericContact{c.Type, c.Value, c.Visibility, c.IsVerificationPhone}
 	}
-	out.Contacts, out.ContactsRestricted, _ = s.filterContacts(ctx, generic, e.ID, uuid.Nil, viewPublic)
+	out.Contacts = s.filterContacts(ctx, generic, uuid.Nil, viewPublic)
 	rows, err := s.Repos.Catalog.PublishedOfEstablishment(ctx, e.ID, 200)
 	if err != nil {
 		return nil, apperr.Internal(err)

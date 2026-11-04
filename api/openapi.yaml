@@ -2708,6 +2708,53 @@ paths:
           $ref: '#/components/responses/422'
         '429':
           $ref: '#/components/responses/429'
+  /api/v1/admin/establishments/{id}/subscription/activate:
+    post:
+      summary: Put the subscription in service without payment (manual activation)
+      description: Starts now, or extends the running period, for `days` (the plan interval when 0 or absent, 730 at most). No invoice is issued; draft profiles go in service as after a payment.
+      tags:
+      - admin
+      operationId: post_admin_establishments_id_subscription_activate
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                days:
+                  type: integer
+                  minimum: 0
+                  maximum: 730
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/400'
+        '401':
+          $ref: '#/components/responses/401'
+        '403':
+          $ref: '#/components/responses/403'
+        '404':
+          $ref: '#/components/responses/404'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
   /api/v1/admin/profiles:
     get:
       summary: All profiles
@@ -4188,10 +4235,8 @@ components:
             - MANAGER_ACCOUNT_INACTIVE
             - ESTABLISHMENT_HIDDEN
             - ESTABLISHMENT_SUBSCRIPTION_INACTIVE
-            - PENDING_MANAGER_APPROVAL
             - PROFILE_NOT_ACTIVE
             - PROFILE_HIDDEN
-            - NO_PRIMARY_PHOTO
             - PROFESSIONAL_ACCOUNT_INACTIVE
             - ACTIVE_PROFILES_QUOTA_EXCEEDED
       required:
@@ -4231,7 +4276,6 @@ components:
     ProfileStatus:
       type: string
       enum:
-      - PENDING_APPROVAL
       - DRAFT
       - ACTIVE
       - ARCHIVED
@@ -4672,11 +4716,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PublicContact'
-        contacts_restricted:
-          type: boolean
-          description: restricted contacts exist but are hidden for this viewer
-        contacts_rate_limited:
-          type: boolean
         establishment:
           $ref: '#/components/schemas/PublicEstablishmentRef'
         published:
@@ -4700,8 +4739,6 @@ components:
       - rates
       - categories
       - contacts
-      - contacts_restricted
-      - contacts_rate_limited
       - establishment
       - published
     PublicEstablishment:
@@ -4720,8 +4757,6 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/PublicContact'
-          contacts_restricted:
-            type: boolean
           profiles:
             type: array
             items:
@@ -4731,7 +4766,6 @@ components:
         - opening_hours
         - address
         - contacts
-        - contacts_restricted
         - profiles
     Plan:
       type: object
@@ -4754,8 +4788,6 @@ components:
         max_active_profiles:
           type: integer
           nullable: true
-        max_pending_profiles:
-          type: integer
       required:
       - code
       - name
@@ -4765,7 +4797,6 @@ components:
       - trial_days
       - grace_days
       - max_active_profiles
-      - max_pending_profiles
     Subscription:
       type: object
       properties:

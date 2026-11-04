@@ -84,15 +84,11 @@ func TestPublicationConditions(t *testing.T) {
 	if !published() {
 		t.Fatal("restored")
 	}
-	// Primary photo removed by admin.
+	// A photo is not required (ADR-027): removing it keeps the profile published.
 	photo := e.get("/api/v1/manager/profiles/"+id, m.Token).JSON()["photos"].([]any)[0].(map[string]any)["id"].(string)
 	e.del("/api/v1/admin/profiles/"+id+"/photos/"+photo, adm.Token, map[string]any{"reason": "non conforme"}).expect(204)
-	if published() {
-		t.Fatal("profile without photo published")
-	}
-	e.upload("/api/v1/manager/profiles/"+id+"/photos", m.Token, testJPEG()).expect(201)
 	if !published() {
-		t.Fatal("new photo should republish")
+		t.Fatal("profile without photo should stay published")
 	}
 	// Editing the establishment page never unpublishes.
 	est := e.get("/api/v1/manager/establishment", m.Token).JSON()

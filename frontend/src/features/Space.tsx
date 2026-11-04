@@ -26,20 +26,17 @@ const pages: Record<string, { role: Role; title: string; component: ComponentTyp
   'manager.subscription': { role: 'MANAGER', title: 'Abonnement', component: Subscription },
   'manager.invoices': { role: 'MANAGER', title: 'Factures', component: Invoices },
   'manager.stats': { role: 'MANAGER', title: 'Statistiques', component: ManagerStats },
-  'manager.security': { role: 'MANAGER', title: 'Sécurité du compte', component: () => <Security /> },
+  'manager.security': { role: 'MANAGER', title: 'Sécurité du compte', component: Security },
   'pro.profile': { role: 'PROFESSIONAL', title: 'Mon profil', component: () => <ProfileEditor mode="professional" /> },
   'pro.status': { role: 'PROFESSIONAL', title: 'Statut de publication', component: ProStatus },
   'pro.preview': { role: 'PROFESSIONAL', title: 'Aperçu', component: ProPreview },
-  'pro.security': { role: 'PROFESSIONAL', title: 'Sécurité du compte', component: () => <Security /> },
+  'pro.security': { role: 'PROFESSIONAL', title: 'Sécurité du compte', component: Security },
   'admin.dashboard': { role: 'ADMIN', title: 'Tableau de bord', component: AdminDashboard },
   'admin.establishments': { role: 'ADMIN', title: 'Établissements', component: AdminEstablishments },
   'admin.profiles': { role: 'ADMIN', title: 'Profils', component: AdminProfiles },
   'admin.users': { role: 'ADMIN', title: 'Utilisateurs', component: AdminUsers },
   'admin.billing': { role: 'ADMIN', title: 'Abonnements et paiements', component: AdminBilling },
-  'admin.security': { role: 'ADMIN', title: 'Sessions', component: () => <Security withCodes={false} /> },
 };
-
-export type PageKey = keyof typeof pages;
 
 export default function Space({ page, id }: { page: string; id?: string }) {
   const def = pages[page];

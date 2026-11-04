@@ -49,9 +49,6 @@ function EstablishmentInner({ est }: { est: PublicEstablishment }) {
                   </Text>
                 );
               })}
-              {est.contacts_restricted && (
-                <Text fontSize="sm" color="fg.muted">Certaines coordonnées ne sont pas publiques.</Text>
-              )}
             </Stack>
           </Section>
         </Stack>

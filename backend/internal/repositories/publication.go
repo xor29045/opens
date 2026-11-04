@@ -13,8 +13,8 @@ import (
 //  2. establishment not hidden, not deleted;
 //  3. entitlement: ACTIVE/TRIALING/PAST_DUE and now < period end + grace,
 //     except for a cancellation that took effect at period end;
-//  4. profile ACTIVE; 5. not hidden; 6. primary photo;
-//  7. max_active_profiles quota (oldest publications keep their slot).
+//  4. profile ACTIVE; 5. not hidden (no photo required, ADR-027);
+//  6. max_active_profiles quota (oldest publications keep their slot).
 const publicationSQL = `
 WITH entitled AS (
     SELECT s.establishment_id, pl.max_active_profiles
@@ -33,7 +33,6 @@ WITH entitled AS (
          AND en.establishment_id IS NOT NULL
          AND p.status = 'ACTIVE'
          AND NOT p.is_hidden AND p.deleted_at IS NULL
-         AND EXISTS (SELECT 1 FROM profile_photos ph WHERE ph.profile_id = p.id AND ph.is_primary)
         ) AS ok
     FROM professional_profiles p
     JOIN establishments e ON e.id = p.establishment_id

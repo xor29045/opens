@@ -6,6 +6,7 @@ import Pagination from '../../components/Pagination';
 import { Section, StatusBadge } from '../../components/ui';
 import { QueryBlock, DataTable, ActionDialog, type Column } from '../dashboard/shared';
 import { api } from '../../lib/api/client';
+import { describeError } from '../../lib/api/problem';
 import { dateFr, dateTimeFr, eur, reasonLabels } from '../../lib/format';
 import type { components } from '../../lib/api/schema';
 
@@ -81,6 +82,48 @@ function DashboardInner() {
 
 // ---------------------------------------------------------------- establishments
 
+// Manual activation of the subscription, without payment.
+function SubscriptionActivator({ id, active, onDone }: { id: string; active: boolean; onDone: () => void }) {
+  const [days, setDays] = useState('30');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const n = Number(days);
+  const valid = Number.isInteger(n) && n >= 1 && n <= 730;
+  const activate = async () => {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const sub = await api<S['Subscription']>(`/admin/establishments/${id}/subscription/activate`, { method: 'POST', body: { days: n } });
+      setMessage(`Abonnement actif jusqu’au ${dateFr(sub.current_period_end)}. Les profils en brouillon sont mis en service.`);
+      onDone();
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title="Activer l’abonnement">
+      <Text fontSize="sm" color="fg.muted" mb="3">
+        Met l’abonnement en service sans paiement ni facture{active ? ' : la durée s’ajoute à la période en cours' : ''}.
+      </Text>
+      <HStack align="flex-end" gap="2" wrap="wrap">
+        <Field.Root w="40" invalid={!valid}>
+          <Field.Label>Durée (jours)</Field.Label>
+          <Input type="number" inputMode="numeric" min={1} max={730} value={days} onChange={(e) => setDays(e.target.value)} />
+        </Field.Root>
+        <Button colorPalette="brand" loading={busy} disabled={!valid || busy} onClick={activate}>
+          {active ? 'Prolonger' : 'Activer'}
+        </Button>
+      </HStack>
+      {message && <Text mt="2" color="success" role="status">{message}</Text>}
+      {error && <Text mt="2" color="danger" role="alert">{error}</Text>}
+    </Section>
+  );
+}
+
 function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['admin', 'establishment', id], queryFn: ({ signal }) => api<{
@@ -104,7 +147,10 @@ function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void })
                 <Text>Département : {e.city?.name ?? '—'}</Text>
                 <Text>Numéro pour la plateforme : {verif ? <Code>{verif.value}</Code> : '—'}</Text>
                 <Text>Créé le : {dateFr(e.created_at)}</Text>
-                <Text>Abonnement : {q.data.subscription ? <StatusBadge value={q.data.subscription.status} /> : 'aucun'}</Text>
+                <Text>
+                  Abonnement : {q.data.subscription ? <StatusBadge value={q.data.subscription.status} /> : 'aucun'}
+                  {q.data.subscription?.current_period_end ? ` jusqu’au ${dateFr(q.data.subscription.current_period_end)}` : ''}
+                </Text>
               </Grid>
               {q.data.blocking_reasons.length > 0 && (
                 <Text mt="2" fontSize="sm" color="fg.muted">Bloquants : {q.data.blocking_reasons.map((r) => reasonLabels[r] ?? r).join(' · ')}</Text>
@@ -119,6 +165,7 @@ function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void })
                 )}
               </HStack>
             </Section>
+            <SubscriptionActivator id={id} active={q.data.subscription?.status === 'ACTIVE'} onDone={refresh} />
             <Section title={`Profils (${q.data.profiles.length})`}>
               <DataTable rows={q.data.profiles} empty="Aucun profil." caption="Profils de l’établissement" columns={[
                 { key: 'name', header: 'Nom', cell: (p) => p.display_name },

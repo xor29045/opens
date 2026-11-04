@@ -143,12 +143,6 @@ func (r *CatalogRepo) Search(ctx context.Context, f CatalogFilter, p Page) ([]Ca
 	return out, total, err
 }
 
-func (r *CatalogRepo) PublishedBySlug(ctx context.Context, slug string) (*CatalogRow, error) {
-	var row CatalogRow
-	err := r.published(ctx).Select(catalogSelect).Where("p.slug = ?", slug).Take(&row).Error
-	return &row, err
-}
-
 func (r *CatalogRepo) PublishedOfEstablishment(ctx context.Context, establishmentID uuid.UUID, limit int) ([]CatalogRow, error) {
 	var out []CatalogRow
 	err := r.published(ctx).Select(catalogSelect).Where("p.establishment_id = ?", establishmentID).

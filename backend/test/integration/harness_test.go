@@ -18,7 +18,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -75,7 +74,7 @@ func resetDB(t *testing.T, db *database.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.Gorm.Exec(`UPDATE subscription_plans SET max_active_profiles = NULL, max_pending_profiles = 20`)
+	db.Gorm.Exec(`UPDATE subscription_plans SET max_active_profiles = NULL`)
 }
 
 type env struct {
@@ -115,7 +114,6 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 		NOWPaymentsIPNSecret:      "ipn-secret",
 		PlatformLegalName:         "Éditeur SRL", PlatformCompanyNumber: "0403.170.701",
 	}
-	enc, _ := crypto.NewFieldEncryptor("v1:" + strings.Repeat("A", 43) + "=")
 	clk := clock.NewFake(time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC))
 	pay := fake.New("ipn-secret")
 	store := storage.NewMemory()
@@ -125,7 +123,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 		Cfg: cfg, DB: db, Repos: repositories.New(db), Clock: clk,
 		Hasher: password.NewHasher(password.Params{MemoryKiB: 1024, Iterations: 1, Parallelism: 1, SaltLen: 16, KeyLen: 32}, 4),
 		Breach: password.LocalChecker{}, JWT: &jwt.Issuer{Keys: jwt.NewKeyRing("test", priv, nil), Issuer: cfg.JWTIssuer, Audience: cfg.JWTAudience, Now: clk.Now},
-		Redis: rdb, Limiter: limiter, Storage: store, Payment: pay, Encryptor: enc, Logger: logger,
+		Redis: rdb, Limiter: limiter, Storage: store, Payment: pay, Logger: logger,
 	})
 	deps := routes.Deps{Cfg: cfg, Svc: svc, Logger: logger, Limiter: limiter, RateLimitDisabled: true}
 	for _, o := range opts {

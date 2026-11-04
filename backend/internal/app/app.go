@@ -18,7 +18,6 @@ import (
 	"opensex/backend/internal/repositories"
 	"opensex/backend/internal/services"
 	"opensex/backend/pkg/clock"
-	"opensex/backend/pkg/crypto"
 	"opensex/backend/pkg/jwt"
 	"opensex/backend/pkg/password"
 	"opensex/backend/pkg/payment"
@@ -86,10 +85,6 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	enc, err := crypto.NewFieldEncryptor(cfg.FieldEncryptionKeys)
-	if err != nil {
-		return nil, err
-	}
 	var store storage.Storage
 	if cfg.StorageDriver == "memory" {
 		logger.Warn("in-memory photo storage: development only")
@@ -118,7 +113,7 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 		Hasher: password.NewHasher(password.Params{MemoryKiB: cfg.Argon2MemoryKiB, Iterations: cfg.Argon2Iterations,
 			Parallelism: cfg.Argon2Parallelism, SaltLen: 16, KeyLen: 32}, cfg.Argon2MaxConcurrent),
 		Breach: breach, JWT: &jwt.Issuer{Keys: keys, Issuer: cfg.JWTIssuer, Audience: cfg.JWTAudience},
-		Redis: rdb, Limiter: limiter, Storage: store, Payment: pay, Encryptor: enc, Logger: logger,
+		Redis: rdb, Limiter: limiter, Storage: store, Payment: pay, Logger: logger,
 	})
 	return &App{Cfg: cfg, Logger: logger, DB: db, Redis: rdb, Limiter: limiter, Svc: svc}, nil
 }

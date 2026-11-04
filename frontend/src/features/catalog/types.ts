@@ -3,14 +3,6 @@ import type { components } from '../../lib/api/schema';
 export type ProfileCard = components['schemas']['ProfileCard'];
 export type PublicProfile = components['schemas']['PublicProfile'];
 export type PublicEstablishment = components['schemas']['PublicEstablishment'];
-export type Attributes = components['schemas']['Attributes'];
-export interface Paginated<T> {
-  items: T[];
-  page: number;
-  page_size: number;
-  total: number;
-  total_pages: number;
-}
 
 /** Labels for contact types (display only). */
 export const contactLabels: Record<string, string> = {

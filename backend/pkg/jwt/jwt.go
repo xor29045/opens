@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -50,15 +49,6 @@ func NewKeyRing(activeKID string, active ed25519.PrivateKey, verify map[string]e
 }
 
 func (k *KeyRing) ActiveKID() string { return k.activeKID }
-
-func (k *KeyRing) KIDs() []string {
-	out := make([]string, 0, len(k.publicKeys))
-	for kid := range k.publicKeys {
-		out = append(out, kid)
-	}
-	sort.Strings(out)
-	return out
-}
 
 // LoadKeyRing reads "<kid>.pem" (PKCS#8 Ed25519 private keys) and
 // "<kid>.pub.pem" (PKIX public keys, verification only) from dir.

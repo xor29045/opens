@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"opensex/backend/internal/dto"
-	"opensex/backend/internal/middlewares"
 	"opensex/backend/internal/services"
 )
 
@@ -181,10 +180,4 @@ func (h *Handler) RevokeSession(c *gin.Context) {
 		return
 	}
 	noContent(c)
-}
-
-// optionalBearer authenticates the bearer if present without failing (logout).
-func (h *Handler) OptionalBearer() gin.HandlerFunc {
-	a := &middlewares.Auth{Svc: h.Svc.Auth}
-	return a.OptionalAuth()
 }

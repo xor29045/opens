@@ -1,5 +1,5 @@
-import { eur } from '../../lib/format';
 import type { ProfileCard } from './types';
+import { Roses } from '../../components/Rose';
 
 // Same markup and styles (.os-card in styles/global.css) as the server-rendered
 // card of the home page, so both catalogues look identical.
@@ -10,7 +10,7 @@ export default function ProfileCardView({ card }: { card: ProfileCard }) {
       <div className="os-card__media">
         {card.photo_url && <img src={card.photo_url} alt="" loading="lazy" decoding="async" />}
       </div>
-      {card.price_from_cents != null && <span className="os-card__badge">dès {eur(card.price_from_cents)}</span>}
+      {card.price_from_cents != null && <span className="os-card__badge">dès <Roses cents={card.price_from_cents} /></span>}
       <div className="os-card__body">
         <h3 className="os-card__name">
           {card.display_name}

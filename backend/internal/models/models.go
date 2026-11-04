@@ -17,10 +17,9 @@ const (
 	RoleAdmin        = "ADMIN"
 	RoleManager      = "MANAGER"
 	RoleProfessional = "PROFESSIONAL"
-	RoleClient       = "CLIENT"
 )
 
-var RoleIDs = map[string]int16{RoleAdmin: 1, RoleManager: 2, RoleProfessional: 3, RoleClient: 4}
+var RoleIDs = map[string]int16{RoleAdmin: 1, RoleManager: 2, RoleProfessional: 3}
 
 // Account statuses.
 const (
@@ -64,7 +63,6 @@ const (
 	RevokeAdminPasswordReset = "ADMIN_PASSWORD_RESET"
 	RevokePasswordChanged    = "PASSWORD_CHANGED"
 	RevokeSuspended          = "SUSPENDED"
-	RevokeAdmin              = "ADMIN"
 	RevokeDeleted            = "DELETED"
 )
 
@@ -118,32 +116,28 @@ type Category struct {
 }
 
 type Establishment struct {
-	ID             uuid.UUID `gorm:"type:uuid;primaryKey"`
-	ManagerUserID  uuid.UUID `gorm:"type:uuid"`
-	Slug           string
-	DisplayName    string
-	LegalName      string
-	CompanyNumber  *string
-	ApprovalNumber *string
-	Description    string
-	OpeningHours   JSON
-	RegionID       *uuid.UUID `gorm:"type:uuid"`
-	CityID         *uuid.UUID `gorm:"type:uuid"`
-	Address        *string
-	AddressPublic  bool
-	SubmittedAt    *time.Time
-	IsHidden       bool
-	HiddenReason   *string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	DeletedAt      gorm.DeletedAt
+	ID            uuid.UUID `gorm:"type:uuid;primaryKey"`
+	ManagerUserID uuid.UUID `gorm:"type:uuid"`
+	Slug          string
+	DisplayName   string
+	LegalName     string
+	Description   string
+	OpeningHours  JSON
+	RegionID      *uuid.UUID `gorm:"type:uuid"`
+	CityID        *uuid.UUID `gorm:"type:uuid"`
+	Address       *string
+	AddressPublic bool
+	IsHidden      bool
+	HiddenReason  *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     gorm.DeletedAt
 }
 
 // Contact types and visibilities (RM-40).
 const (
-	VisibilityPublic  = "PUBLIC"
-	VisibilityClients = "CLIENTS"
-	VisibilityHidden  = "HIDDEN"
+	VisibilityPublic = "PUBLIC"
+	VisibilityHidden = "HIDDEN"
 )
 
 var ContactTypes = []string{"PHONE", "WHATSAPP", "TELEGRAM", "INSTAGRAM", "FACEBOOK", "WEBSITE", "OTHER"}
@@ -160,42 +154,37 @@ type EstablishmentContact struct {
 
 // Profile statuses.
 const (
-	ProfilePendingApproval = "PENDING_APPROVAL"
-	ProfileDraft           = "DRAFT"
-	ProfileActive          = "ACTIVE"
-	ProfileArchived        = "ARCHIVED"
+	ProfileDraft    = "DRAFT"
+	ProfileActive   = "ACTIVE"
+	ProfileArchived = "ARCHIVED"
 )
 
 type Profile struct {
-	ID                  uuid.UUID  `gorm:"type:uuid;primaryKey"`
-	EstablishmentID     uuid.UUID  `gorm:"type:uuid"`
-	UserID              *uuid.UUID `gorm:"type:uuid"`
-	Slug                string
-	DisplayName         string
-	Headline            string
-	Description         string
-	Age                 *int16
-	HeightCm            *int16
-	WeightKg            *int16
-	HairColor           *string
-	EyeColor            *string
-	BodyType            *string
-	Languages           StringArray `gorm:"type:text[]"`
-	ExtraAttributes     JSON
-	BirthDateAttested   *time.Time `gorm:"type:date"`
-	EmploymentReference *string
-	AttestedAt          *time.Time
-	AttestedBy          *uuid.UUID `gorm:"type:uuid"`
-	Status              string
-	IsHidden            bool
-	HiddenReason        *string
-	PriceFromCents      *int64
-	IsPublished         bool
-	PublishedAt         *time.Time
-	LastEditedBy        *uuid.UUID `gorm:"type:uuid"`
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	DeletedAt           gorm.DeletedAt
+	ID              uuid.UUID  `gorm:"type:uuid;primaryKey"`
+	EstablishmentID uuid.UUID  `gorm:"type:uuid"`
+	UserID          *uuid.UUID `gorm:"type:uuid"`
+	Slug            string
+	DisplayName     string
+	Headline        string
+	Description     string
+	Age             *int16
+	HeightCm        *int16
+	WeightKg        *int16
+	HairColor       *string
+	EyeColor        *string
+	BodyType        *string
+	Languages       StringArray `gorm:"type:text[]"`
+	ExtraAttributes JSON
+	Status          string
+	IsHidden        bool
+	HiddenReason    *string
+	PriceFromCents  *int64
+	IsPublished     bool
+	PublishedAt     *time.Time
+	LastEditedBy    *uuid.UUID `gorm:"type:uuid"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletedAt       gorm.DeletedAt
 }
 
 func (Profile) TableName() string { return "professional_profiles" }
@@ -236,19 +225,18 @@ type ProfessionalCategory struct {
 }
 
 type SubscriptionPlan struct {
-	ID                 uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Code               string
-	Name               string
-	AmountCents        int64
-	Currency           string
-	IntervalDays       int
-	TrialDays          int
-	GraceDays          int
-	MaxPendingProfiles int
-	MaxActiveProfiles  *int
-	IsActive           bool
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Code              string
+	Name              string
+	AmountCents       int64
+	Currency          string
+	IntervalDays      int
+	TrialDays         int
+	GraceDays         int
+	MaxActiveProfiles *int
+	IsActive          bool
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // Subscription statuses.
@@ -323,7 +311,6 @@ type PaymentProviderEvent struct {
 
 // Alert severities.
 const (
-	SeverityInfo     = "INFO"
 	SeverityWarn     = "WARN"
 	SeverityCritical = "CRITICAL"
 )

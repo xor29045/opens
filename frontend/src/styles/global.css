@@ -145,15 +145,6 @@ img {
   margin: 20px 0 0;
 }
 
-.os-section-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-  margin-bottom: 32px;
-}
-
 /* ------------------------------------------------------------ buttons */
 .os-btn {
   display: inline-flex;
@@ -185,15 +176,6 @@ img {
 .os-btn--ghost:hover {
   border-color: var(--os-muted);
 }
-.os-link-arrow {
-  color: var(--os-accent-fg);
-  text-decoration: none;
-  font-weight: 600;
-}
-.os-link-arrow:hover {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
 
 /* ------------------------------------------------------------ hero */
 .os-hero {
@@ -213,29 +195,6 @@ img {
   inset: 0;
   pointer-events: none;
   color: var(--os-surface-2);
-}
-
-.os-search {
-  margin-top: 32px;
-  display: flex;
-  gap: 8px;
-  padding: 8px;
-  background: var(--os-surface);
-  border: 1px solid var(--os-border);
-  border-radius: var(--os-radius-lg);
-  max-width: 34rem;
-}
-.os-search select {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  color: var(--os-text);
-  border: 0;
-  font: inherit;
-  padding: 10px 12px;
-}
-.os-search select option {
-  background: var(--os-surface);
 }
 
 .os-stats {
@@ -287,11 +246,6 @@ img {
 }
 
 /* ------------------------------------------------------------ cards */
-.os-cards {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
-}
 
 .os-card {
   position: relative;
@@ -358,57 +312,8 @@ img {
 }
 
 /* ------------------------------------------------------------ chips */
-.os-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.os-chip {
-  padding: 9px 16px;
-  border-radius: 999px;
-  border: 1px solid var(--os-border);
-  text-decoration: none;
-  color: var(--os-text);
-  font-size: 0.92rem;
-  transition: border-color var(--os-ease), background-color var(--os-ease);
-}
-.os-chip:hover {
-  border-color: var(--os-accent);
-  background: var(--os-accent-soft);
-}
 
 /* ------------------------------------------------------------ features */
-.os-features {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-.os-feature {
-  padding: 28px;
-  border-radius: var(--os-radius-lg);
-  background: var(--os-surface);
-  border: 1px solid var(--os-border);
-}
-.os-feature__icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: var(--os-accent-soft);
-  color: var(--os-accent-fg);
-  margin-bottom: 20px;
-}
-.os-feature h3 {
-  font-family: var(--os-serif);
-  font-weight: 500;
-  font-size: 1.35rem;
-  margin: 0 0 8px;
-}
-.os-feature p {
-  color: var(--os-muted);
-  margin: 0;
-}
 
 /* ------------------------------------------------------------ split CTA */
 .os-split {
@@ -762,9 +667,6 @@ img {
 
 /* ------------------------------------------------------------ responsive */
 @media (max-width: 1024px) {
-  .os-cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
   .os-footer__grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -774,16 +676,11 @@ img {
     padding: 56px 0 48px;
   }
   .os-hero__grid,
-  .os-split,
-  .os-features {
+  .os-split {
     grid-template-columns: 1fr;
   }
   .os-mosaic {
     display: none;
-  }
-  .os-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
   }
   .os-section {
     padding: 52px 0;
@@ -793,12 +690,22 @@ img {
   }
 }
 @media (max-width: 480px) {
-  .os-search {
-    flex-direction: column;
-  }
   .os-footer__grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* "Rose" currency (1 rose = 1 €): amount followed by the rose icon. */
+.os-roses {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2em;
+  white-space: nowrap;
+}
+.os-rose {
+  flex: none;
+  color: var(--os-accent);
+  transform: translateY(0.12em);
 }
 
 /* Global rules that the Chakra style system cannot express. */

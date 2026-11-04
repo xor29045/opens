@@ -5,5 +5,3 @@ export const publicApiBase = (): string =>
 
 export const internalApiBase = (): string =>
   process.env.API_INTERNAL_URL ? `${process.env.API_INTERNAL_URL}/api/v1` : publicApiBase();
-
-export const REFRESH_COOKIE = '__Host-rt';

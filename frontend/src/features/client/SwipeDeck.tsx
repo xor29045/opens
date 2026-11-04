@@ -7,8 +7,8 @@ import { api } from '../../lib/api/client';
 import { describeError } from '../../lib/api/problem';
 import { clearPassed, excluded, forget, like, pass } from '../../lib/likes';
 import DeckFilters, { countFilters, loadFilters, saveFilters, type Filters } from './DeckFilters';
-import { eur } from '../../lib/format';
 import type { components } from '../../lib/api/schema';
+import { Roses } from '../../components/Rose';
 
 type Card = components['schemas']['DiscoverCard'];
 type Deck = { items: Card[]; remaining: number };
@@ -190,9 +190,6 @@ function DeckBody({ initial, filters, onClearFilters }: { initial: Deck; filters
 
   return (
     <Stack gap="5" align="center">
-      <Text color="fg.muted" fontSize="sm" aria-live="polite">
-        {remaining > 0 ? `${remaining} profil${remaining > 1 ? 's' : ''} à découvrir` : 'Tu as tout vu pour le moment'}
-      </Text>
       <span className="visually-hidden" aria-live="assertive">{announce}</span>
 
       {top ? (
@@ -274,7 +271,7 @@ function DeckCard({ card, photo, behind = false }: { card: Card; photo: number; 
           <p className="os-deck__meta">
             {card.establishment_name}
             {card.city ? ` · ${card.city}` : ''}
-            {card.price_from_cents != null ? ` · dès ${eur(card.price_from_cents)}` : ''}
+            {card.price_from_cents != null && <> · dès <Roses cents={card.price_from_cents} /></>}
           </p>
           {card.headline && <p className="os-deck__headline">{card.headline}</p>}
           {card.categories.length > 0 && (

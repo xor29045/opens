@@ -7,9 +7,9 @@ import { QueryBlock } from '../dashboard/shared';
 import { useStore } from '@nanostores/react';
 import { forget, like, likesAtom } from '../../lib/likes';
 import { api } from '../../lib/api/client';
-import { eur } from '../../lib/format';
 import { bodyTypes, eyeColors, genders, hairColors, labelOf, skinTones } from '../../lib/attributes';
 import { contactHref, contactLabels, type PublicProfile } from './types';
+import { Roses } from '../../components/Rose';
 
 function Details({ p }: { p: PublicProfile }) {
   const attrs = p.extra_attributes as Record<string, string>;
@@ -74,11 +74,6 @@ function Contacts({ p }: { p: PublicProfile }) {
           </HStack>
         );
       })}
-      {p.contacts_restricted && (
-        <Text fontSize="sm" color="fg.muted">
-          Certaines coordonnées ne sont pas publiques.
-        </Text>
-      )}
     </Stack>
   );
 }
@@ -139,7 +134,7 @@ export function ProfileInner({ profile: p }: { profile: PublicProfile }) {
                 {p.rates.map((r) => (
                   <List.Item key={`${r.label}-${r.amount_cents}`} display="flex" justifyContent="space-between">
                     <span>{r.label}{r.duration_minutes ? ` · ${r.duration_minutes} min` : ''}</span>
-                    <strong>{eur(r.amount_cents)}</strong>
+                    <strong><Roses cents={r.amount_cents} /></strong>
                   </List.Item>
                 ))}
               </List.Root>

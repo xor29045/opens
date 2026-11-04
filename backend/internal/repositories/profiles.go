@@ -35,13 +35,6 @@ func (r *ProfileRepo) ScopedByIDForUpdate(ctx context.Context, establishmentID, 
 	return &p, err
 }
 
-// ExistsAnywhere reports whether a profile id exists (used to detect IDOR attempts).
-func (r *ProfileRepo) ExistsAnywhere(ctx context.Context, id uuid.UUID) bool {
-	var n int64
-	r.db(ctx).Model(&models.Profile{}).Where("id = ?", id).Count(&n)
-	return n > 0
-}
-
 func (r *ProfileRepo) ByUser(ctx context.Context, userID uuid.UUID) (*models.Profile, error) {
 	var p models.Profile
 	err := r.db(ctx).Where("user_id = ?", userID).Take(&p).Error
@@ -204,12 +197,6 @@ func (r *ProfileRepo) SetPrimaryPhoto(ctx context.Context, profileID, photoID uu
 
 func (r *ProfileRepo) SetPhotoPosition(ctx context.Context, profileID, photoID uuid.UUID, pos int) error {
 	return r.db(ctx).Model(&models.ProfilePhoto{}).Where("id = ? AND profile_id = ?", photoID, profileID).Update("position", pos).Error
-}
-
-func (r *ProfileRepo) HasPrimaryPhoto(ctx context.Context, profileID uuid.UUID) (bool, error) {
-	var n int64
-	err := r.db(ctx).Model(&models.ProfilePhoto{}).Where("profile_id = ? AND is_primary", profileID).Count(&n).Error
-	return n > 0, err
 }
 
 // ---- contacts, rates, categories

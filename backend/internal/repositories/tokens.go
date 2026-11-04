@@ -33,10 +33,6 @@ func (r *TokenRepo) RevokeRefresh(ctx context.Context, id uuid.UUID, reason stri
 		Updates(map[string]any{"revoked_at": at, "revoked_reason": reason}).Error
 }
 
-func (r *TokenRepo) TouchRefresh(ctx context.Context, id uuid.UUID, at time.Time) error {
-	return r.db(ctx).Model(&models.RefreshToken{}).Where("id = ?", id).Update("last_used_at", at).Error
-}
-
 // RevokeFamily revokes every active token of a session family.
 func (r *TokenRepo) RevokeFamily(ctx context.Context, familyID uuid.UUID, reason string, at time.Time) error {
 	return r.db(ctx).Model(&models.RefreshToken{}).Where("family_id = ? AND revoked_at IS NULL", familyID).

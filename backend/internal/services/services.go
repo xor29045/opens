@@ -14,7 +14,6 @@ import (
 	"opensex/backend/internal/database"
 	"opensex/backend/internal/repositories"
 	"opensex/backend/pkg/clock"
-	"opensex/backend/pkg/crypto"
 	"opensex/backend/pkg/jwt"
 	"opensex/backend/pkg/password"
 	"opensex/backend/pkg/payment"
@@ -23,19 +22,18 @@ import (
 )
 
 type Deps struct {
-	Cfg       *config.Config
-	DB        *database.DB
-	Repos     *repositories.Repos
-	Clock     clock.Clock
-	Hasher    *password.Hasher
-	Breach    password.BreachChecker
-	JWT       *jwt.Issuer
-	Redis     redis.UniversalClient
-	Limiter   *ratelimit.Limiter
-	Storage   storage.Storage
-	Payment   payment.Provider
-	Encryptor *crypto.FieldEncryptor
-	Logger    *slog.Logger
+	Cfg     *config.Config
+	DB      *database.DB
+	Repos   *repositories.Repos
+	Clock   clock.Clock
+	Hasher  *password.Hasher
+	Breach  password.BreachChecker
+	JWT     *jwt.Issuer
+	Redis   redis.UniversalClient
+	Limiter *ratelimit.Limiter
+	Storage storage.Storage
+	Payment payment.Provider
+	Logger  *slog.Logger
 }
 
 // Services is the container of every business service. Each service embeds

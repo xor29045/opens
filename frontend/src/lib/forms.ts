@@ -18,10 +18,3 @@ export function zodResolver<T extends FieldValues>(schema: z.ZodType<T>): Resolv
     return { values: {} as T, errors: errors as FieldErrors<T> } as never;
   };
 }
-
-/** Optional integer from a text input ('' → undefined). */
-export const optionalInt = z
-  .union([z.literal(''), z.coerce.number().int()])
-  .transform((v) => (v === '' ? undefined : v));
-
-export const euroToCents = (v: string): number => Math.round(Number(v.replace(',', '.')) * 100);

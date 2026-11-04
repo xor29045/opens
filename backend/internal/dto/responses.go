@@ -145,13 +145,6 @@ func NewCategory(c models.Category) Category {
 	return Category{ID: c.ID, Slug: c.Slug, Name: c.Name, Description: c.Description, ParentID: c.ParentID, Position: c.Position, IsActive: c.IsActive}
 }
 
-type SelectableEstablishment struct {
-	Slug        string  `json:"slug"`
-	DisplayName string  `json:"display_name"`
-	City        *string `json:"city"`
-	Region      *string `json:"region"`
-}
-
 // ---------------------------------------------------------------- establishments
 
 type Contact struct {
@@ -368,20 +361,19 @@ func NewAdminProfile(p models.Profile) AdminProfile {
 // ---------------------------------------------------------------- billing
 
 type Plan struct {
-	Code               string `json:"code"`
-	Name               string `json:"name"`
-	AmountCents        int64  `json:"amount_cents"`
-	Currency           string `json:"currency"`
-	IntervalDays       int    `json:"interval_days"`
-	TrialDays          int    `json:"trial_days"`
-	GraceDays          int    `json:"grace_days"`
-	MaxActiveProfiles  *int   `json:"max_active_profiles"`
-	MaxPendingProfiles int    `json:"max_pending_profiles"`
+	Code              string `json:"code"`
+	Name              string `json:"name"`
+	AmountCents       int64  `json:"amount_cents"`
+	Currency          string `json:"currency"`
+	IntervalDays      int    `json:"interval_days"`
+	TrialDays         int    `json:"trial_days"`
+	GraceDays         int    `json:"grace_days"`
+	MaxActiveProfiles *int   `json:"max_active_profiles"`
 }
 
 func NewPlan(p models.SubscriptionPlan) Plan {
 	return Plan{Code: p.Code, Name: p.Name, AmountCents: p.AmountCents, Currency: p.Currency, IntervalDays: p.IntervalDays,
-		TrialDays: p.TrialDays, GraceDays: p.GraceDays, MaxActiveProfiles: p.MaxActiveProfiles, MaxPendingProfiles: p.MaxPendingProfiles}
+		TrialDays: p.TrialDays, GraceDays: p.GraceDays, MaxActiveProfiles: p.MaxActiveProfiles}
 }
 
 type Subscription struct {

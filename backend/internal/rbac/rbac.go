@@ -25,7 +25,7 @@ func (a *Actor) Is(role string) bool { return a != nil && a.Role == role }
 func (a *Actor) IsAdmin() bool { return a.Is(models.RoleAdmin) }
 
 var AllRoles = map[string]bool{
-	models.RoleAdmin: true, models.RoleManager: true, models.RoleProfessional: true, models.RoleClient: true,
+	models.RoleAdmin: true, models.RoleManager: true, models.RoleProfessional: true,
 }
 
 type RequestMeta struct {

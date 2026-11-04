@@ -25,7 +25,6 @@ function Inner() {
 }
 
 function OverviewBody({ o }: { o: Overview }) {
-  const withoutLogin = o.profiles.filter((p) => !p.linked_account && p.status !== 'ARCHIVED');
   const columns: Column<ProfileSummary>[] = [
     { key: 'name', header: 'Professionnel·le', cell: (p) => <a href={`/gerant/dashboard/profils/${p.id}`}>{p.display_name}</a> },
     { key: 'status', header: 'Statut', cell: (p) => <StatusBadge value={p.status} /> },

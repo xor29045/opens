@@ -36,19 +36,6 @@ const (
 
 var LimitPayment = []ratelimit.Limit{ratelimit.PerHour(10)}
 
-func (s *BillingService) planForLimits(ctx context.Context, establishmentID uuid.UUID) (*models.SubscriptionPlan, error) {
-	if sub, err := s.Repos.Billing.CurrentSubscription(ctx, establishmentID); err == nil {
-		if p, err := s.Repos.Billing.PlanByID(ctx, sub.PlanID); err == nil {
-			return p, nil
-		}
-	}
-	p, err := s.Repos.Billing.DefaultPlan(ctx)
-	if err != nil {
-		return nil, apperr.Internal(fmt.Errorf("no active plan: %w", err))
-	}
-	return p, nil
-}
-
 func (s *BillingService) Plans(ctx context.Context) ([]models.SubscriptionPlan, error) {
 	p, err := s.Repos.Billing.ActivePlans(ctx)
 	if err != nil {
@@ -614,8 +601,8 @@ func renderInvoice(inv *models.Invoice, snap billingSnapshot) []byte {
 // Reconcile re-queries the provider for a payment; with forcePaid an admin
 // accepts a PARTIAL payment (RM-35). A reason is required.
 func (s *BillingService) Reconcile(ctx context.Context, paymentID uuid.UUID, reason string, forcePaid bool) (*models.Payment, error) {
-	reason, err := reasonRequired(reason)
-	if err != nil {
+	// The reason is mandatory (UI safeguard) but no longer stored.
+	if _, err := reasonRequired(reason); err != nil {
 		return nil, err
 	}
 	p, err := s.Repos.Billing.PaymentByID(ctx, paymentID)
@@ -791,4 +778,84 @@ func (s *BillingService) ReconcileStalePayments(ctx context.Context) (int, error
 		}
 	}
 	return n, nil
+}
+
+// MaxManualDays caps a manual activation (about two years).
+const MaxManualDays = 730
+
+// AdminActivate puts the subscription of an establishment in service without
+// payment (gesture, offline payment, tests). The period starts now, or at
+// the end of the running period, and lasts `days` (the plan interval when 0).
+// No invoice is issued; draft profiles go in service as after a payment.
+func (s *BillingService) AdminActivate(ctx context.Context, establishmentID uuid.UUID, days int) (*models.Subscription, error) {
+	if days < 0 || days > MaxManualDays {
+		return nil, apperr.Invalid("days", "out_of_range")
+	}
+	var out *models.Subscription
+	err := s.tx(ctx, func(ctx context.Context) error {
+		est, err := s.Repos.Establishments.ByIDForUpdate(ctx, establishmentID)
+		if err != nil {
+			if database.IsNotFound(err) {
+				return apperr.NotFound("establishment")
+			}
+			return apperr.Internal(err)
+		}
+		now := s.now()
+		sub, err := s.Repos.Billing.CurrentSubscription(ctx, est.ID)
+		switch {
+		case err == nil:
+			sub, err = s.Repos.Billing.SubscriptionForUpdate(ctx, sub.ID)
+			if err != nil {
+				return apperr.Internal(err)
+			}
+		case database.IsNotFound(err):
+			plan, err := s.Repos.Billing.DefaultPlan(ctx)
+			if err != nil {
+				return apperr.Internal(err)
+			}
+			sub = &models.Subscription{ID: models.NewID(), EstablishmentID: est.ID, PlanID: plan.ID, Status: models.SubIncomplete,
+				Provider: "manual", CreatedAt: now, UpdatedAt: now}
+			if err := s.Repos.Billing.CreateSubscription(ctx, sub); err != nil {
+				return apperr.Internal(err)
+			}
+		default:
+			return apperr.Internal(err)
+		}
+		if days == 0 {
+			plan, err := s.Repos.Billing.PlanByID(ctx, sub.PlanID)
+			if err != nil {
+				return apperr.Internal(err)
+			}
+			days = plan.IntervalDays
+		}
+		start := now
+		running := (sub.Status == models.SubActive || sub.Status == models.SubTrialing) && sub.CurrentPeriodEnd != nil && sub.CurrentPeriodEnd.After(now)
+		if running {
+			start = *sub.CurrentPeriodEnd
+		}
+		end := start.AddDate(0, 0, days)
+		periodStart := now
+		if running && sub.CurrentPeriodStart != nil {
+			periodStart = *sub.CurrentPeriodStart
+		}
+		if err := s.Repos.Billing.UpdateSubscription(ctx, sub.ID, map[string]any{
+			"status": models.SubActive, "current_period_start": periodStart, "current_period_end": end,
+			"grace_until": nil, "canceled_at": nil, "cancel_at_period_end": false,
+		}); err != nil {
+			return apperr.Internal(err)
+		}
+		if _, err := s.Repos.Profiles.ActivateDrafts(ctx, est.ID, now); err != nil {
+			return apperr.Internal(err)
+		}
+		if err := s.Publication.Recompute(ctx, est.ID); err != nil {
+			return err
+		}
+		s.Alert.Send(ctx, "billing.subscription.manual_activation", models.SeverityWarn, "establishment", est.ID.String())
+		out, err = s.Repos.Billing.SubscriptionForUpdate(ctx, sub.ID)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		return nil
+	})
+	return out, err
 }

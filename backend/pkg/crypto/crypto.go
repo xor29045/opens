@@ -4,8 +4,6 @@
 package crypto
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -13,9 +11,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -97,74 +93,4 @@ func DecodeKey(s string, minLen int) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("key must be base64 or hex encoded and at least %d bytes", minLen)
-}
-
-// FieldEncryptor encrypts small fields with AES-256-GCM. Ciphertexts are
-// prefixed with the key version ("v1:<base64>") so keys can be rotated.
-type FieldEncryptor struct {
-	active string
-	keys   map[string]cipher.AEAD
-}
-
-// NewFieldEncryptor parses "v1:<key>,v2:<key>" — the last entry is active.
-func NewFieldEncryptor(spec string) (*FieldEncryptor, error) {
-	fe := &FieldEncryptor{keys: map[string]cipher.AEAD{}}
-	for _, part := range strings.Split(spec, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		version, raw, ok := strings.Cut(part, ":")
-		if !ok || !strings.HasPrefix(version, "v") {
-			return nil, errors.New("FIELD_ENCRYPTION_KEYS entries must look like v1:<base64 key>")
-		}
-		if _, err := strconv.Atoi(version[1:]); err != nil {
-			return nil, errors.New("FIELD_ENCRYPTION_KEYS version must be numeric")
-		}
-		key, err := DecodeKey(raw, 32)
-		if err != nil {
-			return nil, err
-		}
-		block, err := aes.NewCipher(key[:32])
-		if err != nil {
-			return nil, err
-		}
-		aead, err := cipher.NewGCM(block)
-		if err != nil {
-			return nil, err
-		}
-		fe.keys[version] = aead
-		fe.active = version
-	}
-	if fe.active == "" {
-		return nil, errors.New("FIELD_ENCRYPTION_KEYS is empty")
-	}
-	return fe, nil
-}
-
-func (f *FieldEncryptor) Encrypt(plain string) string {
-	aead := f.keys[f.active]
-	nonce := RandomBytes(aead.NonceSize())
-	ct := aead.Seal(nonce, nonce, []byte(plain), []byte(f.active))
-	return f.active + ":" + base64.RawStdEncoding.EncodeToString(ct)
-}
-
-func (f *FieldEncryptor) Decrypt(value string) (string, error) {
-	version, raw, ok := strings.Cut(value, ":")
-	if !ok {
-		return "", errors.New("malformed ciphertext")
-	}
-	aead, ok := f.keys[version]
-	if !ok {
-		return "", errors.New("unknown key version")
-	}
-	ct, err := base64.RawStdEncoding.DecodeString(raw)
-	if err != nil || len(ct) < aead.NonceSize() {
-		return "", errors.New("malformed ciphertext")
-	}
-	plain, err := aead.Open(nil, ct[:aead.NonceSize()], ct[aead.NonceSize():], []byte(version))
-	if err != nil {
-		return "", errors.New("decryption failed")
-	}
-	return string(plain), nil
 }

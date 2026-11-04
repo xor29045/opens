@@ -101,10 +101,3 @@ func RequirePasswordChanged() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-// CurrentUser returns the authenticated user loaded by RequireAuth.
-func CurrentUser(c *gin.Context) *models.User {
-	u, _ := c.Get(ctxUser)
-	user, _ := u.(*models.User)
-	return user
-}

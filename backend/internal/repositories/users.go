@@ -34,18 +34,6 @@ func (r *UserRepo) ByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	return &u, err
 }
 
-// ByIDForUpdate locks the user row then loads it with its role.
-func (r *UserRepo) ByIDForUpdate(ctx context.Context, id uuid.UUID) (*models.User, error) {
-	res := r.db(ctx).Exec("SELECT 1 FROM users WHERE id = ? AND deleted_at IS NULL FOR UPDATE", id)
-	if res.Error != nil {
-		return nil, res.Error
-	}
-	if res.RowsAffected == 0 {
-		return nil, gorm.ErrRecordNotFound
-	}
-	return r.ByID(ctx, id)
-}
-
 func (r *UserRepo) ByUsername(ctx context.Context, username string) (*models.User, error) {
 	var u models.User
 	err := r.withRole(ctx).Where("users.username = ?", username).Take(&u).Error
@@ -62,11 +50,6 @@ func (r *UserRepo) Exists(ctx context.Context, username string) (bool, error) {
 func (r *UserRepo) Update(ctx context.Context, id uuid.UUID, cols map[string]any) error {
 	cols["updated_at"] = time.Now().UTC()
 	return r.db(ctx).Model(&models.User{}).Where("id = ?", id).Updates(cols).Error
-}
-
-// HardDelete removes a user row (cascades to tokens, codes, favorites).
-func (r *UserRepo) HardDelete(ctx context.Context, id uuid.UUID) error {
-	return r.db(ctx).Unscoped().Delete(&models.User{}, "id = ?", id).Error
 }
 
 type UserFilter struct {

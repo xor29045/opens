@@ -382,3 +382,24 @@ func (h *Handler) AdminDeleteRegion(c *gin.Context) {
 	}
 	ok(c, gin.H{"deactivated": deactivated, "deleted": !deactivated})
 }
+
+// AdminActivateSubscription puts the subscription of an establishment in
+// service without payment, for `days` (plan interval when 0 or absent).
+func (h *Handler) AdminActivateSubscription(c *gin.Context) {
+	id, valid := uuidParam(c, "id")
+	if !valid {
+		return
+	}
+	var req struct {
+		Days int `json:"days"`
+	}
+	if !h.bind(c, &req) {
+		return
+	}
+	sub, err := h.Svc.Billing.AdminActivate(c.Request.Context(), id, req.Days)
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	ok(c, dto.NewSubscription(sub))
+}

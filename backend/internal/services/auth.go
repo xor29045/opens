@@ -376,9 +376,6 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput, admin bool) (*Au
 	if (u.Role == models.RoleAdmin) != admin {
 		return nil, failed(u, "wrong_endpoint")
 	}
-	if u.Role == models.RoleClient { // client accounts are retired (ADR-023)
-		return nil, failed(u, "client_retired")
-	}
 	cols := map[string]any{"failed_login_count": 0, "locked_until": nil, "last_login_at": now}
 	if rehash {
 		if h, err := s.Hasher.Hash(ctx, in.Password); err == nil {
@@ -738,8 +735,6 @@ func (s *AuthService) Me(ctx context.Context, actor *rbac.Actor) (*MeResult, err
 	}
 	return out, nil
 }
-
-func parseUUID(s string) (uuid.UUID, error) { return uuid.Parse(s) }
 
 // ---------------------------------------------------------------- request authentication
 

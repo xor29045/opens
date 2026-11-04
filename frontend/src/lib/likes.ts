@@ -85,6 +85,3 @@ export function excluded(): string[] {
   return [...s.liked.map((l) => l.id), ...s.passed];
 }
 
-export function isLiked(id: string): boolean {
-  return likesAtom.get().liked.some((l) => l.id === id);
-}

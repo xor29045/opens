@@ -26,10 +26,8 @@ const (
 	ReasonManagerInactive     = "MANAGER_ACCOUNT_INACTIVE"
 	ReasonEstablishmentHidden = "ESTABLISHMENT_HIDDEN"
 	ReasonNoEntitlement       = "ESTABLISHMENT_SUBSCRIPTION_INACTIVE"
-	ReasonPendingApproval     = "PENDING_MANAGER_APPROVAL"
 	ReasonNotActive           = "PROFILE_NOT_ACTIVE"
 	ReasonHidden              = "PROFILE_HIDDEN"
-	ReasonNoPrimaryPhoto      = "NO_PRIMARY_PHOTO"
 	ReasonAccountInactive     = "PROFESSIONAL_ACCOUNT_INACTIVE"
 	ReasonQuotaExceeded       = "ACTIVE_PROFILES_QUOTA_EXCEEDED"
 )
@@ -75,11 +73,7 @@ func (s *PublicationService) ProfileReasons(ctx context.Context, st *Establishme
 		return []string{}, nil
 	}
 	reasons := append([]string{}, st.Reasons()...)
-	switch p.Status {
-	case models.ProfilePendingApproval:
-		reasons = append(reasons, ReasonPendingApproval)
-	case models.ProfileActive:
-	default:
+	if p.Status != models.ProfileActive {
 		reasons = append(reasons, ReasonNotActive)
 	}
 	if p.IsHidden {
@@ -91,13 +85,8 @@ func (s *PublicationService) ProfileReasons(ctx context.Context, st *Establishme
 			reasons = append(reasons, ReasonAccountInactive)
 		}
 	}
-	has, err := s.Repos.Profiles.HasPrimaryPhoto(ctx, p.ID)
-	if err != nil {
-		return nil, apperr.Internal(err)
-	}
-	if !has {
-		reasons = append(reasons, ReasonNoPrimaryPhoto)
-	}
+	// A photo is no longer required to publish (ADR-027): an active profile of
+	// a subscribed house shows in the catalogue and the deck at once.
 	if len(reasons) == 0 && st.MaxActive != nil {
 		reasons = append(reasons, ReasonQuotaExceeded)
 	}

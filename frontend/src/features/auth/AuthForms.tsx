@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Alert, Button, chakra, Checkbox, Field, Input, Stack, Text, Heading } from '@chakra-ui/react';
+import { Alert, Button, chakra, Field, Input, Stack, Text, Heading } from '@chakra-ui/react';
 import Providers from '../../components/Providers';
 import { Section } from '../../components/ui';
 import RecoveryCodesDialog from './RecoveryCodesDialog';

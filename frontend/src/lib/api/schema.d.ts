@@ -1186,6 +1186,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/establishments/{id}/subscription/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put the subscription in service without payment (manual activation)
+         * @description Starts now, or extends the running period, for `days` (the plan interval when 0 or absent, 730 at most). No invoice is issued; draft profiles go in service as after a payment.
+         */
+        post: operations["post_admin_establishments_id_subscription_activate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/profiles": {
         parameters: {
             query?: never;
@@ -1695,7 +1715,7 @@ export interface components {
             published: boolean;
             /** Format: date-time */
             published_at: string | null;
-            reasons: ("MANAGER_ACCOUNT_INACTIVE" | "ESTABLISHMENT_HIDDEN" | "ESTABLISHMENT_SUBSCRIPTION_INACTIVE" | "PENDING_MANAGER_APPROVAL" | "PROFILE_NOT_ACTIVE" | "PROFILE_HIDDEN" | "NO_PRIMARY_PHOTO" | "PROFESSIONAL_ACCOUNT_INACTIVE" | "ACTIVE_PROFILES_QUOTA_EXCEEDED")[];
+            reasons: ("MANAGER_ACCOUNT_INACTIVE" | "ESTABLISHMENT_HIDDEN" | "ESTABLISHMENT_SUBSCRIPTION_INACTIVE" | "PROFILE_NOT_ACTIVE" | "PROFILE_HIDDEN" | "PROFESSIONAL_ACCOUNT_INACTIVE" | "ACTIVE_PROFILES_QUOTA_EXCEEDED")[];
         };
         LinkedAccount: {
             /** Format: uuid */
@@ -1710,7 +1730,7 @@ export interface components {
             at: string;
         };
         /** @enum {string} */
-        ProfileStatus: "PENDING_APPROVAL" | "DRAFT" | "ACTIVE" | "ARCHIVED";
+        ProfileStatus: "DRAFT" | "ACTIVE" | "ARCHIVED";
         Profile: {
             /** Format: uuid */
             id: string;
@@ -1867,9 +1887,6 @@ export interface components {
             }[];
             categories: components["schemas"]["Place"][];
             contacts: components["schemas"]["PublicContact"][];
-            /** @description restricted contacts exist but are hidden for this viewer */
-            contacts_restricted: boolean;
-            contacts_rate_limited: boolean;
             establishment: components["schemas"]["PublicEstablishmentRef"];
             published: boolean;
         };
@@ -1878,7 +1895,6 @@ export interface components {
             opening_hours: components["schemas"]["OpeningHours"];
             address: string | null;
             contacts: components["schemas"]["PublicContact"][];
-            contacts_restricted: boolean;
             profiles: components["schemas"]["ProfileCard"][];
         };
         Plan: {
@@ -1891,7 +1907,6 @@ export interface components {
             trial_days: number;
             grace_days: number;
             max_active_profiles: number | null;
-            max_pending_profiles: number;
         };
         Subscription: {
             /** Format: uuid */
@@ -4430,6 +4445,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: components["responses"]["400"];
+            401: components["responses"]["401"];
+            403: components["responses"]["403"];
+            404: components["responses"]["404"];
+            422: components["responses"]["422"];
+            429: components["responses"]["429"];
+        };
+    };
+    post_admin_establishments_id_subscription_activate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    days?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Subscription"];
+                };
             };
             400: components["responses"]["400"];
             401: components["responses"]["401"];

@@ -5,9 +5,9 @@ import Providers from '../../components/Providers';
 import { Section, EmptyState } from '../../components/ui';
 import { QueryBlock } from '../dashboard/shared';
 import { api } from '../../lib/api/client';
-import { eur } from '../../lib/format';
 import { forget, likesAtom } from '../../lib/likes';
 import type { components } from '../../lib/api/schema';
+import { Roses } from '../../components/Rose';
 
 type Card = components['schemas']['DiscoverCard'];
 
@@ -47,7 +47,7 @@ function FavoritesInner() {
                     {c ? <a href={`/profils/${c.slug}`}><strong>{c.display_name}</strong></a> : <Text fontWeight="semibold">{l.display_name}</Text>}
                     {c ? (
                       <Text fontSize="sm" color="fg.muted">
-                        {c.establishment_name}{c.city ? ` · ${c.city}` : ''}{c.price_from_cents != null ? ` · dès ${eur(c.price_from_cents)}` : ''}
+                        {c.establishment_name}{c.city ? ` · ${c.city}` : ''}{c.price_from_cents != null && <> · dès <Roses cents={c.price_from_cents} /></>}
                       </Text>
                     ) : <Badge alignSelf="flex-start">Indisponible</Badge>}
                     {c?.headline && <Text fontSize="sm" lineClamp={2}>{c.headline}</Text>}

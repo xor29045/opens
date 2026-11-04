@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Box, Button, Field, Grid, HStack, Input, NativeSelect, Stack, Text, Wrap } from '@chakra-ui/react';
 import { api } from '../../lib/api/client';
 import { eyeColors, genders, hairColors, skinTones } from '../../lib/attributes';
+import { RoseIcon } from '../../components/Rose';
 import type { components } from '../../lib/api/schema';
 
 export type Filters = components['schemas']['DiscoverFilters'];
@@ -56,7 +57,7 @@ const lists: { key: ListKey; label: string; options: [string, string][] }[] = [
 const ranges: { key: RangeKey; label: string; unit: string; min: number; max: number }[] = [
   { key: 'age', label: 'Âge', unit: 'ans', min: 18, max: 99 },
   { key: 'height', label: 'Taille', unit: 'cm', min: 120, max: 230 },
-  { key: 'price', label: 'Prix', unit: '€', min: 0, max: 100000 },
+  { key: 'price', label: 'Prix', unit: 'roses', min: 0, max: 100000 },
 ];
 
 export default function DeckFilters({ value, onApply }: { value: Filters; onApply: (f: Filters) => void }) {
@@ -129,7 +130,9 @@ export default function DeckFilters({ value, onApply }: { value: Filters; onAppl
             <Grid templateColumns={{ base: '1fr', sm: 'repeat(3, 1fr)' }} gap="3">
               {ranges.map((r) => (
                 <Box key={r.key} role="group" aria-label={`${r.label} (${r.unit})`}>
-                  <Text fontSize="sm" fontWeight="medium" mb="1.5">{r.label} ({r.unit})</Text>
+                  <Text fontSize="sm" fontWeight="medium" mb="1.5">
+                    {r.label} ({r.unit}{r.key === 'price' && <> <RoseIcon /></>})
+                  </Text>
                   <HStack gap="1.5">
                     <Input size="sm" type="number" inputMode="numeric" placeholder="min" min={r.min} max={r.max} aria-label={`${r.label} minimum`}
                       value={draft[`${r.key}_min`] ?? ''} onChange={(e) => setNum(`${r.key}_min`, e.target.value)} />

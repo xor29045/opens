@@ -3,47 +3,21 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Code, Field, HStack, Input, SimpleGrid, Stack, Text } from '@chakra-ui/react';
 import Providers from '../../components/Providers';
 import { Section } from '../../components/ui';
-import { QueryBlock, DataTable, type Column } from '../dashboard/shared';
+import { QueryBlock } from '../dashboard/shared';
 import { api } from '../../lib/api/client';
 import { describeError } from '../../lib/api/problem';
-import { dateTimeFr } from '../../lib/format';
-import { sessionStore } from '../../lib/auth/session';
 import type { components } from '../../lib/api/schema';
 
-type Session = components['schemas']['Session'];
 type RecoveryStatus = components['schemas']['RecoveryStatus'];
 
-/** Sessions and recovery codes, shared by every non-admin space. */
-function SecurityInner({ withCodes }: { withCodes: boolean }) {
+/** Recovery codes, shared by the manager and professional spaces. */
+function SecurityInner() {
   const qc = useQueryClient();
-  const sessions = useQuery({ queryKey: ['auth', 'sessions'], queryFn: ({ signal }) => api<{ items: Session[] }>('/auth/sessions', { signal }) });
-  const codes = useQuery({ queryKey: ['auth', 'codes'], enabled: withCodes, queryFn: ({ signal }) => api<RecoveryStatus>('/auth/recovery-codes/status', { signal }) });
+  const codes = useQuery({ queryKey: ['auth', 'codes'], queryFn: ({ signal }) => api<RecoveryStatus>('/auth/recovery-codes/status', { signal }) });
   const [password, setPassword] = useState('');
   const [newCodes, setNewCodes] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const revoke = async (s: Session) => {
-    setError(null);
-    try {
-      await api(`/auth/sessions/${s.id}`, { method: 'DELETE' });
-      if (s.current) {
-        sessionStore.clear();
-        window.location.replace('/');
-        return;
-      }
-      qc.invalidateQueries({ queryKey: ['auth', 'sessions'] });
-    } catch (e) {
-      setError(describeError(e));
-    }
-  };
-  const logoutAll = async () => {
-    try {
-      await api('/auth/logout-all', { method: 'POST' });
-    } finally {
-      sessionStore.clear();
-      window.location.replace('/');
-    }
-  };
   const regenerate = async () => {
     setError(null);
     try {
@@ -57,17 +31,9 @@ function SecurityInner({ withCodes }: { withCodes: boolean }) {
     }
   };
 
-  const columns: Column<Session>[] = [
-    { key: 'agent', header: 'Appareil', cell: (s) => <Text fontSize="sm" lineClamp={1}>{s.user_agent || 'Inconnu'}{s.current ? ' (cette session)' : ''}</Text> },
-    { key: 'last', header: 'Dernière activité', cell: (s) => dateTimeFr(s.last_used_at) },
-    { key: 'exp', header: 'Expire', cell: (s) => dateTimeFr(s.expires_at) },
-    { key: 'act', header: '', cell: (s) => <Button size="xs" variant="outline" onClick={() => revoke(s)}>Fermer</Button> },
-  ];
-
   return (
     <Stack gap="6">
-      {withCodes && (
-        <Section title="Codes de récupération">
+      <Section title="Codes de récupération">
           <QueryBlock isPending={codes.isPending} isError={codes.isError} error={codes.error} onRetry={() => codes.refetch()}>
             <Stack gap="3">
               <Text color={codes.data?.low ? 'danger' : undefined}>Codes restants : {codes.data?.remaining}{codes.data?.low ? ' — pense à en générer de nouveaux.' : ''}</Text>
@@ -87,13 +53,12 @@ function SecurityInner({ withCodes }: { withCodes: boolean }) {
               )}
             </Stack>
           </QueryBlock>
-        </Section>
-      )}
+      </Section>
       {error && <Text color="danger" role="alert">{error}</Text>}
     </Stack>
   );
 }
 
-export default function Security({ withCodes = true }: { withCodes?: boolean }) {
-  return <Providers><SecurityInner withCodes={withCodes} /></Providers>;
+export default function Security() {
+  return <Providers><SecurityInner /></Providers>;
 }

@@ -259,6 +259,7 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	adh(http.MethodGet, "/establishments/:id", h.AdminEstablishment)
 	adh(http.MethodPost, "/establishments/:id/hide", h.AdminHideEstablishment)
 	adh(http.MethodPost, "/establishments/:id/unhide", h.AdminUnhideEstablishment)
+	adh(http.MethodPost, "/establishments/:id/subscription/activate", h.AdminActivateSubscription)
 	adh(http.MethodGet, "/profiles", h.AdminProfiles)
 	adh(http.MethodPost, "/profiles/:id/hide", h.AdminHideProfile)
 	adh(http.MethodPost, "/profiles/:id/unhide", h.AdminUnhideProfile)

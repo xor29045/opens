@@ -2,8 +2,11 @@ package integration
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"opensex/backend/internal/jobs"
 )
@@ -168,4 +171,37 @@ func TestSubscriptionLifecycle(t *testing.T) {
 		}
 	}
 	release()
+}
+
+// The platform can put a subscription in service without payment.
+func TestAdminActivateSubscription(t *testing.T) {
+	e := newEnv(t)
+	adm := e.adminAccount()
+	m, _ := e.readyManager()
+	_, id := e.hire(m, "Lola")
+	e.upload("/api/v1/manager/profiles/"+id+"/photos", m.Token, testJPEG()).expect(http.StatusCreated)
+	estID := e.get("/api/v1/manager/establishment", m.Token).expect(200).JSON()["id"].(string)
+	path := "/api/v1/admin/establishments/" + estID + "/subscription/activate"
+
+	e.post(path, m.Token, map[string]any{}).expect(http.StatusForbidden)
+	e.post(path, adm.Token, map[string]any{"days": 5000}).expect(http.StatusUnprocessableEntity)
+	e.post("/api/v1/admin/establishments/"+uuid.NewString()+"/subscription/activate", adm.Token, map[string]any{}).expect(http.StatusNotFound)
+
+	sub := e.post(path, adm.Token, map[string]any{"days": 30}).expect(http.StatusOK).JSON()
+	if sub["status"] != "ACTIVE" {
+		t.Fatalf("subscription %v", sub)
+	}
+	end1 := sub["current_period_end"].(string)
+	d := e.get("/api/v1/manager/profiles/"+id, m.Token).expect(200).JSON()
+	if d["status"] != "ACTIVE" || !d["publication"].(map[string]any)["published"].(bool) {
+		t.Fatalf("draft should be in service and published: %v %v", d["status"], d["publication"])
+	}
+	if !e.get("/api/v1/billing/subscription", m.Token).expect(200).JSON()["entitled"].(bool) {
+		t.Fatal("house should be entitled")
+	}
+	// A second activation extends the running period.
+	end2 := e.post(path, adm.Token, map[string]any{"days": 30}).expect(http.StatusOK).JSON()["current_period_end"].(string)
+	if end2 <= end1 {
+		t.Fatalf("period not extended: %s then %s", end1, end2)
+	}
 }

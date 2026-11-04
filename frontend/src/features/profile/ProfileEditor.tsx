@@ -13,6 +13,7 @@ import { reasonLabels } from '../../lib/format';
 import { profileBase, profileLabels, contactTypes, visibilities, type Profile, type Category, type Contact } from './profileApi';
 import PhotoManager from './PhotoManager';
 import { bodyTypes, eyeColors, genders, hairColors, skinTones } from '../../lib/attributes';
+import { RoseIcon } from '../../components/Rose';
 
 const text = (max: number) => z.string().trim().max(max, 'too_long');
 const profileSchema = z.object({
@@ -277,7 +278,7 @@ function RatesSection({ base, rates, onChange }: { base: string; rates: Profile[
               <Input type="number" value={r.duration} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, duration: e.target.value } : x)))} />
             </Field.Root>
             <Field.Root w="32">
-              <Field.Label>Montant (€)</Field.Label>
+              <Field.Label>Montant (roses <RoseIcon />)</Field.Label>
               <Input inputMode="decimal" value={r.price} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} />
             </Field.Root>
             <Button size="sm" variant="ghost" aria-label={`Supprimer le tarif ${i + 1}`} onClick={() => setRows(rows.filter((_, j) => j !== i))}>Retirer</Button>

@@ -152,13 +152,6 @@ func (s *AdminService) HideEstablishment(ctx context.Context, id uuid.UUID, hide
 	})
 }
 
-func nilIfEmpty(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
 // ---------------------------------------------------------------- profiles
 
 func (s *AdminService) ListProfiles(ctx context.Context, f repositories.ProfileFilter, p repositories.Page) ([]models.Profile, int64, error) {
@@ -387,8 +380,8 @@ func (s *AdminService) Restore(ctx context.Context, id uuid.UUID) error {
 // establishment's profiles and professional accounts; the establishment and
 // its billing are kept (soft delete) for the legal retention period.
 func (s *AdminService) Delete(ctx context.Context, id uuid.UUID, reason string) error {
-	reason, err := reasonRequired(reason)
-	if err != nil {
+	// The reason is mandatory (UI safeguard) but no longer stored.
+	if _, err := reasonRequired(reason); err != nil {
 		return err
 	}
 	u, err := s.nonAdminTarget(ctx, id)

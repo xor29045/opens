@@ -79,8 +79,8 @@ func TestNoWaitOnceSubscribed(t *testing.T) {
 	e.subscribeAndPay(m)
 	p, _ := e.hire(m, "Mia")
 	st := e.get("/api/v1/professional/me/publication-status", p.Token).expect(http.StatusOK).JSON()
-	if st["status"] != "ACTIVE" {
-		t.Fatalf("profile of a paid house should be in service at once: %v", st)
+	if st["status"] != "ACTIVE" || !st["published"].(bool) {
+		t.Fatalf("profile of a paid house should be in service and published at once, even without photo: %v", st)
 	}
 	e.upload("/api/v1/professional/me/photos", p.Token, testJPEG()).expect(http.StatusCreated)
 	st = e.get("/api/v1/professional/me/publication-status", p.Token).expect(http.StatusOK).JSON()
