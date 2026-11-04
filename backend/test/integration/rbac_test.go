@@ -16,10 +16,9 @@ func TestRBACCoverage(t *testing.T) {
 	e := newEnv(t)
 	adm := e.adminAccount()
 	m := e.register("manager", nil)
-	c := e.register("client", nil)
-	_, slug := e.readyManager()
-	p := e.register("professional", map[string]any{"establishment_slug": slug})
-	tokens := map[string]string{models.RoleAdmin: adm.Token, models.RoleManager: m.Token, models.RoleClient: c.Token, models.RoleProfessional: p.Token}
+	owner, _ := e.readyManager()
+	p, _ := e.hire(owner, "Lola")
+	tokens := map[string]string{models.RoleAdmin: adm.Token, models.RoleManager: m.Token, models.RoleProfessional: p.Token}
 
 	checked := 0
 	for _, rt := range e.routes {
@@ -47,7 +46,7 @@ func TestRBACCoverage(t *testing.T) {
 		}
 		checked++
 	}
-	if checked < 80 {
+	if checked < 70 {
 		t.Fatalf("only %d protected routes checked", checked)
 	}
 }
@@ -55,12 +54,14 @@ func TestRBACCoverage(t *testing.T) {
 // Scenario 5: a "role" field is ignored.
 func TestRoleFieldIgnored(t *testing.T) {
 	e := newEnv(t)
-	r := e.post("/api/v1/auth/register/client", "", map[string]any{"username": "sneaky", "password": pwd, "accept_terms": true, "role": "ADMIN"}).expect(http.StatusCreated)
-	if role := r.JSON()["user"].(map[string]any)["role"]; role != models.RoleClient {
+	r := e.post("/api/v1/auth/register/manager", "", map[string]any{"username": "sneaky", "password": pwd, "accept_terms": true,
+		"accept_cgv": true, "accept_dpa": true, "role": "ADMIN"}).expect(http.StatusCreated)
+	if role := r.JSON()["user"].(map[string]any)["role"]; role != models.RoleManager {
 		t.Fatalf("role = %v", role)
 	}
 	// Unknown fields are rejected.
-	e.post("/api/v1/auth/register/client", "", map[string]any{"username": "x12", "password": pwd, "accept_terms": true, "is_admin": true}).
+	e.post("/api/v1/auth/register/manager", "", map[string]any{"username": "x12", "password": pwd, "accept_terms": true,
+		"accept_cgv": true, "accept_dpa": true, "is_admin": true}).
 		expect(http.StatusUnprocessableEntity)
 }
 
@@ -83,11 +84,9 @@ func TestCrossEstablishmentIDOR(t *testing.T) {
 		{method: "GET", path: base},
 		{method: "PUT", path: base, body: map[string]any{"display_name": "hacked"}},
 		{method: "DELETE", path: base},
-		{method: "PUT", path: base + "/attestation", body: map[string]any{"birth_date": "1990-01-01", "employment_reference": "x", "attested": true}},
-		{method: "DELETE", path: base + "/attestation"},
 		{method: "POST", path: base + "/activate"},
 		{method: "POST", path: base + "/archive"},
-		{method: "POST", path: base + "/reject", body: map[string]any{"reason": "x"}},
+		{method: "POST", path: base + "/account", body: map[string]any{"username": "intruder1", "password": pwd}},
 		{method: "PUT", path: base + "/rates", body: map[string]any{"rates": []any{map[string]any{"label": "x", "amount_cents": 100}}}},
 		{method: "PATCH", path: base + "/photos/" + photoB, body: map[string]any{"is_primary": true}},
 		{method: "DELETE", path: base + "/photos/" + photoB},
@@ -124,7 +123,7 @@ func TestProfessionalIsolation(t *testing.T) {
 	for _, path := range []string{"/api/v1/manager/profiles", "/api/v1/manager/profiles/" + id2, "/api/v1/billing/subscription", "/api/v1/billing/invoices"} {
 		e.get(path, p1.Token).expect(http.StatusForbidden)
 	}
-	e.put("/api/v1/manager/profiles/"+id2+"/attestation", p1.Token, map[string]any{}).expect(http.StatusForbidden)
+	e.post("/api/v1/manager/profiles", p1.Token, map[string]any{"display_name": "x"}).expect(http.StatusForbidden)
 	// The manager can edit content (H-6), the edit is attributed.
 	d := e.put("/api/v1/manager/profiles/"+id2, m.Token, map[string]any{"display_name": "Mia", "headline": "Bonjour"}).expect(200).JSON()
 	if *strPtr(d["last_edit"].(map[string]any)["by"]) != m.Username {
@@ -137,56 +136,45 @@ func strPtr(v any) *string {
 	return &s
 }
 
-// Scenario 6c: professional registration lifecycle.
-func TestProfessionalRegistration(t *testing.T) {
+// Scenario 6c (ADR-022): professionals do not self-register; the house
+// creates the profile and its login, the professional signs in with it.
+func TestManagerCreatesProfessional(t *testing.T) {
 	e := newEnv(t)
-	m, slug := e.readyManager()
+	m, _ := e.readyManager()
 
-	// A house without public name is not selectable (no verification step).
-	draft := e.register("manager", nil)
-	draftSlug := e.get("/api/v1/manager/establishment", draft.Token).expect(200).JSON()["slug"].(string)
-	e.post("/api/v1/auth/register/professional", "", map[string]any{"username": "pro_x1", "password": pwd, "accept_terms": true,
-		"establishment_slug": draftSlug}).expect(http.StatusUnprocessableEntity)
-	list := e.get("/api/v1/auth/register/establishments", "").expect(200).JSON()["items"].([]any)
-	if len(list) != 1 || list[0].(map[string]any)["slug"] != slug {
-		t.Fatalf("selectable establishments: %v", list)
-	}
+	e.post("/api/v1/auth/register/professional", "", map[string]any{"username": "pro_x1", "password": pwd, "accept_terms": true}).
+		expect(http.StatusNotFound)
 
-	p := e.register("professional", map[string]any{"establishment_slug": slug})
+	p, id := e.hire(m, "Lola")
 	me := e.get("/api/v1/professional/me", p.Token).expect(200).JSON()
-	if me["status"] != models.ProfilePendingApproval {
-		t.Fatal("profile should be pending")
+	if me["id"] != id {
+		t.Fatal("the login must open the profile created by the house")
 	}
 	if _, ok := me["linked_account"]; ok {
 		t.Fatal("professional must not see manager-only fields")
 	}
-	// Cannot attest or activate themselves.
-	e.put("/api/v1/manager/profiles/"+me["id"].(string)+"/attestation", p.Token, map[string]any{}).expect(http.StatusForbidden)
-	st := e.get("/api/v1/professional/me/publication-status", p.Token).expect(200).JSON()
-	if st["published"].(bool) || !contains(st["reasons"], "PENDING_MANAGER_APPROVAL") {
-		t.Fatalf("status %v", st)
+	// Without subscription the profile waits as a draft.
+	if me["status"] != models.ProfileDraft {
+		t.Fatalf("status %v", me["status"])
 	}
-	pending := e.get("/api/v1/manager/pending", m.Token).expect(200).JSON()
-	if pending["total"].(float64) != 1 {
-		t.Fatal("pending registration not visible to the manager")
+	d := e.get("/api/v1/manager/profiles/"+id, m.Token).expect(200).JSON()
+	if la, _ := d["linked_account"].(map[string]any); la == nil || la["username"] != p.Username {
+		t.Fatalf("linked account %v", d["linked_account"])
 	}
-	// Under-age attestation → 422.
-	r := e.put("/api/v1/manager/profiles/"+me["id"].(string)+"/attestation", m.Token,
-		map[string]any{"birth_date": "2010-01-01", "employment_reference": "CT", "attested": true}).expect(http.StatusUnprocessableEntity)
-	if !strings.Contains(string(r.Body), "under_18") {
-		t.Fatal("expected under_18")
-	}
-	// Rejection deletes profile and account and revokes sessions.
-	e.post("/api/v1/manager/profiles/"+me["id"].(string)+"/reject", m.Token, map[string]any{"reason": "ne travaille pas ici"}).expect(http.StatusNoContent)
-	e.get("/api/v1/professional/me", p.Token).expect(http.StatusUnauthorized)
-	e.login(p.Username, p.Password).expect(http.StatusUnauthorized)
+	// Username taken, weak password.
+	e.post("/api/v1/manager/profiles", m.Token, map[string]any{"display_name": "Mia", "username": p.Username, "password": pwd}).
+		expect(http.StatusConflict)
+	e.post("/api/v1/manager/profiles", m.Token, map[string]any{"display_name": "Mia", "username": "pro_weak1", "password": "short"}).
+		expect(http.StatusUnprocessableEntity)
 
-	// Quota of pending registrations.
-	e.db.Gorm.Exec(`UPDATE subscription_plans SET max_pending_profiles = 1`)
-	e.register("professional", map[string]any{"establishment_slug": slug})
-	r = e.post("/api/v1/auth/register/professional", "", map[string]any{"username": "pro_quota", "password": pwd, "accept_terms": true, "establishment_slug": slug})
-	if r.Code != http.StatusUnprocessableEntity || r.problemCode() != "establishment_pending_quota" {
-		t.Fatalf("quota: %d %s", r.Code, r.Body)
+	// A profile created without login gets one later, once only.
+	draft := e.post("/api/v1/manager/profiles", m.Token, map[string]any{"display_name": "Zoé"}).expect(http.StatusCreated).JSON()
+	path := "/api/v1/manager/profiles/" + draft["id"].(string) + "/account"
+	e.post(path, m.Token, map[string]any{"username": "pro_zoe1", "password": pwd}).expect(http.StatusCreated)
+	e.post(path, m.Token, map[string]any{"username": "pro_zoe2", "password": pwd}).expect(http.StatusConflict)
+	tok := e.login("pro_zoe1", pwd).expect(200).JSON()["access_token"].(string)
+	if e.get("/api/v1/professional/me", tok).expect(200).JSON()["id"] != draft["id"] {
+		t.Fatal("late login opens the wrong profile")
 	}
 }
 

@@ -72,26 +72,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/register/client": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Register a CLIENT (role fixed by the endpoint, RM-01)
-         * @description Sets the `__Host-rt` refresh cookie. A `role` field is ignored and recorded as a security event.
-         */
-        post: operations["post_auth_register_client"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/register/manager": {
         parameters: {
             query?: never;
@@ -103,40 +83,6 @@ export interface paths {
         put?: never;
         /** Register a MANAGER and its empty DRAFT establishment */
         post: operations["post_auth_register_manager"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/register/professional": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Register a PROFESSIONAL attached to a house (profile PENDING_APPROVAL) */
-        post: operations["post_auth_register_professional"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/register/establishments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Houses selectable at professional registration */
-        get: operations["get_auth_register_establishments"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -376,7 +322,7 @@ export interface paths {
         };
         /**
          * Search published profiles
-         * @description Signed-in users only.
+         * @description Public (ADR-023). A staff token, when sent, lets a house see its own restricted contacts.
          */
         get: operations["get_profiles"];
         put?: never;
@@ -396,7 +342,7 @@ export interface paths {
         };
         /**
          * Published profile (contacts filtered by visibility, RM-40)
-         * @description Signed-in users only.
+         * @description Public (ADR-023). A staff token, when sent, lets a house see its own restricted contacts.
          */
         get: operations["get_profiles_slug"];
         put?: never;
@@ -416,11 +362,48 @@ export interface paths {
         };
         /**
          * Public page of a verified establishment
-         * @description Signed-in users only.
+         * @description Public (ADR-023). A staff token, when sent, lets a house see its own restricted contacts.
          */
         get: operations["get_establishments_slug"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Anonymous "Découvrir" deck (ADR-023)
+         * @description Published profiles in random order, leaving out the ids the visitor already liked or passed (kept in the browser). POST because the exclusion list can be long.
+         */
+        post: operations["post_discover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/discover/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Describe the liked profiles still published (favorites kept in the browser) */
+        post: operations["post_discover_cards"];
         delete?: never;
         options?: never;
         head?: never;
@@ -564,23 +547,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/manager/pending": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Pending registrations (PENDING_APPROVAL) */
-        get: operations["get_manager_pending"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/manager/profiles": {
         parameters: {
             query?: never;
@@ -591,7 +557,10 @@ export interface paths {
         /** All profiles of the establishment */
         get: operations["get_manager_profiles"];
         put?: never;
-        /** Create a DRAFT profile without linked account */
+        /**
+         * Create a professional profile, optionally with its login (ADR-022)
+         * @description With username and password, a PROFESSIONAL account is created and linked; the professional signs in with it at /pro/login. The profile is ACTIVE at once when the house has a paid subscription, DRAFT otherwise.
+         */
         post: operations["post_manager_profiles"];
         delete?: never;
         options?: never;
@@ -618,7 +587,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/manager/profiles/{profileId}/reject": {
+    "/api/v1/manager/profiles/{profileId}/account": {
         parameters: {
             query?: never;
             header?: never;
@@ -627,27 +596,9 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reject a pending registration (profile and account deleted) */
-        post: operations["post_manager_profiles_profileId_reject"];
+        /** Create the login of a profile that has none (ADR-022) */
+        post: operations["post_manager_profiles_profileId_account"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/manager/profiles/{profileId}/attestation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Attest age (≥ 18) and consent of the person (RM-21) */
-        put: operations["put_manager_profiles_profileId_attestation"];
-        post?: never;
-        /** Remove the attestation (unpublishes) */
-        delete: operations["delete_manager_profiles_profileId_attestation"];
         options?: never;
         head?: never;
         patch?: never;
@@ -662,7 +613,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** DRAFT/ARCHIVED → ACTIVE (attestation required) */
+        /** DRAFT/ARCHIVED → ACTIVE */
         post: operations["post_manager_profiles_profileId_activate"];
         delete?: never;
         options?: never;
@@ -679,7 +630,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Archive: unpublish, invalidate attestation, suspend linked account */
+        /** Archive: unpublish, suspend linked account */
         post: operations["post_manager_profiles_profileId_archive"];
         delete?: never;
         options?: never;
@@ -1150,60 +1101,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/client/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Client account */
-        get: operations["get_client_me"];
-        /** Change username */
-        put: operations["put_client_me"];
-        post?: never;
-        /** Delete the account (password required) */
-        delete: operations["delete_client_me"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/client/favorites": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Favourites (unpublished ones shown as unavailable) */
-        get: operations["get_client_favorites"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/client/favorites/{profileId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Add a favourite (idempotent) */
-        put: operations["put_client_favorites_profileId"];
-        post?: never;
-        /** Remove a favourite */
-        delete: operations["delete_client_favorites_profileId"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/stats": {
         parameters: {
             query?: never;
@@ -1387,23 +1284,6 @@ export interface paths {
         post?: never;
         /** Delete / anonymise (reason) */
         delete: operations["delete_admin_users_id"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/clients": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Clients */
-        get: operations["get_admin_clients"];
-        put?: never;
-        post?: never;
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1600,58 +1480,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/client/discover": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Next profiles to like or pass (published, not yet rated, random order) */
-        get: operations["get_client_discover"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/client/dislikes/{profileId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Pass on a profile (hidden from the deck, removed from favorites) */
-        put: operations["put_client_dislikes_profileId"];
-        post?: never;
-        /** Undo a pass (the profile comes back in the deck) */
-        delete: operations["delete_client_dislikes_profileId"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/client/dislikes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Bring every passed profile back in the deck */
-        delete: operations["delete_client_dislikes"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1671,8 +1499,11 @@ export interface components {
         };
         /** @enum {string} */
         Role: "ADMIN" | "MANAGER" | "PROFESSIONAL" | "CLIENT";
-        /** @enum {string} */
-        Visibility: "PUBLIC" | "CLIENTS" | "HIDDEN";
+        /**
+         * @description CLIENTS was retired with the client accounts (ADR-023).
+         * @enum {string}
+         */
+        Visibility: "PUBLIC" | "HIDDEN";
         /** @enum {string} */
         ContactType: "PHONE" | "WHATSAPP" | "TELEGRAM" | "INSTAGRAM" | "FACEBOOK" | "WEBSITE" | "OTHER";
         User: {
@@ -1777,12 +1608,6 @@ export interface components {
                 [key: string]: string[];
             };
         };
-        SelectableEstablishment: {
-            slug: string;
-            display_name: string;
-            city: string | null;
-            region: string | null;
-        };
         Contact: {
             /** Format: uuid */
             id: string;
@@ -1870,20 +1695,7 @@ export interface components {
             published: boolean;
             /** Format: date-time */
             published_at: string | null;
-            reasons: ("MANAGER_ACCOUNT_INACTIVE" | "ESTABLISHMENT_HIDDEN" | "ESTABLISHMENT_SUBSCRIPTION_INACTIVE" | "PENDING_MANAGER_APPROVAL" | "PROFILE_NOT_ACTIVE" | "PROFILE_NOT_ATTESTED" | "PROFILE_HIDDEN" | "NO_PRIMARY_PHOTO" | "PROFESSIONAL_ACCOUNT_INACTIVE" | "ACTIVE_PROFILES_QUOTA_EXCEEDED")[];
-        };
-        Attestation: {
-            attested: boolean;
-            /** Format: date-time */
-            attested_at: string | null;
-            age: number | null;
-            /**
-             * Format: date
-             * @description Manager only
-             */
-            birth_date: string;
-            /** @description Manager only */
-            employment_reference: string;
+            reasons: ("MANAGER_ACCOUNT_INACTIVE" | "ESTABLISHMENT_HIDDEN" | "ESTABLISHMENT_SUBSCRIPTION_INACTIVE" | "PENDING_MANAGER_APPROVAL" | "PROFILE_NOT_ACTIVE" | "PROFILE_HIDDEN" | "NO_PRIMARY_PHOTO" | "PROFESSIONAL_ACCOUNT_INACTIVE" | "ACTIVE_PROFILES_QUOTA_EXCEEDED")[];
         };
         LinkedAccount: {
             /** Format: uuid */
@@ -1907,6 +1719,7 @@ export interface components {
             display_name: string;
             headline: string;
             description: string;
+            age: number | null;
             height_cm: number | null;
             weight_kg: number | null;
             hair_color: string | null;
@@ -1920,7 +1733,6 @@ export interface components {
             price_from_cents: number | null;
             is_hidden: boolean;
             hidden_reason: string | null;
-            attestation: components["schemas"]["Attestation"];
             photos: components["schemas"]["Photo"][];
             contacts: components["schemas"]["Contact"][];
             rates: components["schemas"]["Rate"][];
@@ -1932,10 +1744,21 @@ export interface components {
             /** Format: date-time */
             created_at: string;
         };
+        /** @description Login of a professional, chosen by the house (ADR-022). */
+        AccountCredentials: {
+            username: string;
+            password: string;
+        };
+        ProfileCreate: components["schemas"]["ProfileInput"] & {
+            username?: string;
+            password?: string;
+        };
         ProfileInput: {
             display_name: string;
             headline?: string;
             description?: string;
+            /** @description Declared age, adults only */
+            age?: number | null;
             height_cm?: number | null;
             weight_kg?: number | null;
             hair_color?: string | null;
@@ -1953,7 +1776,6 @@ export interface components {
             slug: string;
             display_name: string;
             status: components["schemas"]["ProfileStatus"];
-            attested: boolean;
             is_hidden: boolean;
             photo_url: string;
             linked_account: components["schemas"]["LinkedAccount"] | null;
@@ -1972,7 +1794,6 @@ export interface components {
             slug: string;
             display_name: string;
             status: components["schemas"]["ProfileStatus"];
-            attested: boolean;
             is_hidden: boolean;
             hidden_reason: string | null;
             is_published: boolean;
@@ -1997,7 +1818,6 @@ export interface components {
             slug: string;
             display_name: string;
             headline: string;
-            age: number | null;
             /** Format: int64 */
             price_from_cents: number | null;
             photo_url: string | null;
@@ -2047,7 +1867,7 @@ export interface components {
             }[];
             categories: components["schemas"]["Place"][];
             contacts: components["schemas"]["PublicContact"][];
-            /** @description CLIENTS contacts exist but are hidden for this viewer */
+            /** @description restricted contacts exist but are hidden for this viewer */
             contacts_restricted: boolean;
             contacts_rate_limited: boolean;
             establishment: components["schemas"]["PublicEstablishmentRef"];
@@ -2167,7 +1987,6 @@ export interface components {
             blocking_reasons: string[];
             subscription: components["schemas"]["Subscription"] | null;
             entitled: boolean;
-            pending_count: number;
             profiles: components["schemas"]["ProfileSummary"][];
         };
         EstablishmentStats: {
@@ -2187,22 +2006,7 @@ export interface components {
             /** Format: date-time */
             published_at: string | null;
             status: components["schemas"]["ProfileStatus"];
-            attested: boolean;
             reasons: string[];
-        };
-        Favorite: {
-            /** Format: uuid */
-            profile_id: string;
-            slug: string;
-            display_name: string;
-            headline: string;
-            available: boolean;
-            age: number | null;
-            price_from_cents: number | null;
-            establishment_name: string;
-            city: string | null;
-            /** Format: date-time */
-            added_at: string;
         };
         AdminStats: {
             published_profiles: number;
@@ -2285,13 +2089,6 @@ export interface components {
             total: number;
             total_pages: number;
         };
-        PageFavorite: {
-            items: components["schemas"]["Favorite"][];
-            page: number;
-            page_size: number;
-            total: number;
-            total_pages: number;
-        };
         PageAdminEstablishmentRow: {
             items: components["schemas"]["AdminEstablishmentRow"][];
             page: number;
@@ -2326,6 +2123,26 @@ export interface components {
             page_size: number;
             total: number;
             total_pages: number;
+        };
+        /** @description Lists match any of their values; empty fields do not filter. Prices in euros. */
+        DiscoverFilters: {
+            /** @description City slug (GET /regions) */
+            city?: string;
+            hair_color?: string[];
+            eye_color?: string[];
+            skin_tone?: string[];
+            gender?: string[];
+            height_min?: number;
+            height_max?: number;
+            age_min?: number;
+            age_max?: number;
+            price_min?: number;
+            price_max?: number;
+        };
+        DiscoverDeck: {
+            items: components["schemas"]["DiscoverCard"][];
+            /** Format: int64 */
+            remaining: number;
         };
         DiscoverCard: {
             /** Format: uuid */
@@ -2507,38 +2324,6 @@ export interface operations {
             };
         };
     };
-    post_auth_register_client: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    username: string;
-                    password: string;
-                    accept_terms: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthResponse"];
-                };
-            };
-            400: components["responses"]["400"];
-            409: components["responses"]["409"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
     post_auth_register_manager: {
         parameters: {
             query?: never;
@@ -2570,63 +2355,6 @@ export interface operations {
             400: components["responses"]["400"];
             409: components["responses"]["409"];
             422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    post_auth_register_professional: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    username: string;
-                    password: string;
-                    accept_terms: boolean;
-                    establishment_slug: string;
-                    display_name?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuthResponse"];
-                };
-            };
-            400: components["responses"]["400"];
-            409: components["responses"]["409"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    get_auth_register_establishments: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["SelectableEstablishment"][];
-                    };
-                };
-            };
             429: components["responses"]["429"];
         };
     };
@@ -2967,10 +2695,14 @@ export interface operations {
                 establishment?: string;
                 /** @description Category slugs (any) */
                 categories?: string[];
-                age_min?: number;
-                age_max?: number;
                 price_min?: number;
                 price_max?: number;
+                age_min?: number;
+                age_max?: number;
+                /** @description Comma-separated values of extra_attributes.skin_tone */
+                skin_tone?: string;
+                /** @description Comma-separated values of extra_attributes.gender */
+                gender?: string;
                 height_min?: number;
                 height_max?: number;
                 hair_color?: string[];
@@ -3046,6 +2778,68 @@ export interface operations {
             };
             401: components["responses"]["401"];
             404: components["responses"]["404"];
+            429: components["responses"]["429"];
+        };
+    };
+    post_discover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    exclude?: string[];
+                    limit?: number;
+                    filters?: components["schemas"]["DiscoverFilters"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiscoverDeck"];
+                };
+            };
+            400: components["responses"]["400"];
+            422: components["responses"]["422"];
+            429: components["responses"]["429"];
+        };
+    };
+    post_discover_cards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["DiscoverCard"][];
+                    };
+                };
+            };
+            400: components["responses"]["400"];
+            422: components["responses"]["422"];
             429: components["responses"]["429"];
         };
     };
@@ -3284,35 +3078,6 @@ export interface operations {
             429: components["responses"]["429"];
         };
     };
-    get_manager_pending: {
-        parameters: {
-            query?: {
-                page?: components["parameters"]["page"];
-                page_size?: components["parameters"]["page_size"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PageProfileSummary"];
-                };
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
     get_manager_profiles: {
         parameters: {
             query?: {
@@ -3355,7 +3120,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProfileInput"];
+                "application/json": components["schemas"]["ProfileCreate"];
             };
         };
         responses: {
@@ -3462,7 +3227,7 @@ export interface operations {
             429: components["responses"]["429"];
         };
     };
-    post_manager_profiles_profileId_reject: {
+    post_manager_profiles_profileId_account: {
         parameters: {
             query?: never;
             header?: never;
@@ -3473,50 +3238,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Reason"];
+                "application/json": components["schemas"]["AccountCredentials"];
             };
         };
         responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            409: components["responses"]["409"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    put_manager_profiles_profileId_attestation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: date */
-                    birth_date: string;
-                    /** @description Optional internal reference */
-                    employment_reference?: string;
-                    /** @enum {boolean} */
-                    attested: true;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
+            /** @description Created */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3528,32 +3255,7 @@ export interface operations {
             401: components["responses"]["401"];
             403: components["responses"]["403"];
             404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    delete_manager_profiles_profileId_attestation: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
+            409: components["responses"]["409"];
             422: components["responses"]["422"];
             429: components["responses"]["429"];
         };
@@ -4584,176 +4286,6 @@ export interface operations {
             429: components["responses"]["429"];
         };
     };
-    get_client_me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    put_client_me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    username: string;
-                };
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["User"];
-                };
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            409: components["responses"]["409"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    delete_client_me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    password: string;
-                };
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    get_client_favorites: {
-        parameters: {
-            query?: {
-                page?: components["parameters"]["page"];
-                page_size?: components["parameters"]["page_size"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PageFavorite"];
-                };
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    put_client_favorites_profileId: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    delete_client_favorites_profileId: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
     get_admin_stats: {
         parameters: {
             query?: never;
@@ -5120,37 +4652,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            400: components["responses"]["400"];
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            422: components["responses"]["422"];
-            429: components["responses"]["429"];
-        };
-    };
-    get_admin_clients: {
-        parameters: {
-            query?: {
-                page?: components["parameters"]["page"];
-                page_size?: components["parameters"]["page_size"];
-                status?: string;
-                q?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PageAdminUser"];
-                };
             };
             400: components["responses"]["400"];
             401: components["responses"]["401"];
@@ -5623,108 +5124,6 @@ export interface operations {
                 };
                 content?: never;
             };
-        };
-    };
-    get_client_discover: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["DiscoverCard"][];
-                        /** @description Profiles left to rate in total */
-                        remaining: number;
-                    };
-                };
-            };
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            429: components["responses"]["429"];
-        };
-    };
-    put_client_dislikes_profileId: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            429: components["responses"]["429"];
-        };
-    };
-    delete_client_dislikes_profileId: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                profileId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            404: components["responses"]["404"];
-            429: components["responses"]["429"];
-        };
-    };
-    delete_client_dislikes: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        restored: number;
-                    };
-                };
-            };
-            401: components["responses"]["401"];
-            403: components["responses"]["403"];
-            429: components["responses"]["429"];
         };
     };
 }

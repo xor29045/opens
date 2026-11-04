@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, HStack, Stack, Text } from '@chakra-ui/react';
 import { EmptyState } from '../../components/ui';
 import { QueryBlock } from '../dashboard/shared';
 import { api } from '../../lib/api/client';
 import { describeError } from '../../lib/api/problem';
+import { clearPassed, excluded, forget, like, pass } from '../../lib/likes';
+import DeckFilters, { countFilters, loadFilters, saveFilters, type Filters } from './DeckFilters';
 import { eur } from '../../lib/format';
 import type { components } from '../../lib/api/schema';
 
@@ -16,25 +18,44 @@ const SWIPE_THRESHOLD = 110; // px before a release counts as a choice
 const EXIT_MS = 260;
 const BATCH = 15;
 
+// The deck is anonymous (ADR-023): the ids already liked or passed, kept in
+// this browser, are left out by the server.
+function fetchDeck(filters: Filters, also: Iterable<string> = [], signal?: AbortSignal) {
+  return api<Deck>('/discover', {
+    method: 'POST', auth: false, signal,
+    body: { exclude: [...new Set([...excluded(), ...also])], limit: BATCH, filters },
+  });
+}
+
 /**
  * "Découvrir": one card at a time. Swipe (or ← / →, or the buttons) to pass
- * or like. A like adds the profile to the favorites; a pass hides it from the
- * deck. The last choices can be undone.
+ * or like. A like adds the profile to the favorites of this browser; a pass
+ * hides it from the deck. The last choices can be undone.
  */
 export default function SwipeDeck() {
+  const [filters, setFilters] = useState<Filters>(() => loadFilters());
+  const filterKey = useMemo(() => JSON.stringify(filters), [filters]);
   const first = useQuery({
-    queryKey: ['client', 'discover', 'first'],
-    queryFn: ({ signal }) => api<Deck>(`/client/discover?limit=${BATCH}`, { signal }),
+    queryKey: ['discover', 'first', filterKey],
+    queryFn: ({ signal }) => fetchDeck(filters, [], signal),
     staleTime: 0,
+    gcTime: 0,
   });
+  const apply = (f: Filters) => {
+    saveFilters(f);
+    setFilters(f);
+  };
   return (
-    <QueryBlock isPending={first.isPending} isError={first.isError} error={first.error} onRetry={() => first.refetch()}>
-      {first.data && <DeckBody initial={first.data} />}
-    </QueryBlock>
+    <Stack gap="4" align="center">
+      <DeckFilters value={filters} onApply={apply} />
+      <QueryBlock isPending={first.isPending} isError={first.isError} error={first.error} onRetry={() => first.refetch()}>
+        {first.data && <DeckBody key={filterKey} initial={first.data} filters={filters} onClearFilters={() => apply({})} />}
+      </QueryBlock>
+    </Stack>
   );
 }
 
-function DeckBody({ initial }: { initial: Deck }) {
+function DeckBody({ initial, filters, onClearFilters }: { initial: Deck; filters: Filters; onClearFilters: () => void }) {
   const [queue, setQueue] = useState<Card[]>(initial.items);
   const [remaining, setRemaining] = useState(initial.remaining);
   const [history, setHistory] = useState<{ card: Card; choice: Choice }[]>([]);
@@ -54,16 +75,16 @@ function DeckBody({ initial }: { initial: Deck }) {
   useEffect(() => {
     if (queue.length > 3 || remaining <= queue.length || loadingMore) return;
     setLoadingMore(true);
-    api<Deck>(`/client/discover?limit=${BATCH}`)
+    fetchDeck(filters, seen.current)
       .then((d) => {
         const fresh = d.items.filter((c) => !seen.current.has(c.id));
         fresh.forEach((c) => seen.current.add(c.id));
         setQueue((q) => [...q, ...fresh]);
-        setRemaining(d.remaining);
+        setRemaining(d.remaining + queue.length);
       })
       .catch(() => undefined)
       .finally(() => setLoadingMore(false));
-  }, [queue.length, remaining, loadingMore]);
+  }, [queue.length, remaining, loadingMore, filters]);
 
   const choose = useCallback(
     (choice: Choice) => {
@@ -80,17 +101,12 @@ function DeckBody({ initial }: { initial: Deck }) {
         setPhoto(0);
         setAnnounce(choice === 'like' ? `${card.display_name} ajouté·e à tes favoris` : `${card.display_name} passé·e`);
       }, EXIT_MS);
-      const request =
-        choice === 'like'
-          ? api(`/client/favorites/${card.id}`, { method: 'PUT' })
-          : api(`/client/dislikes/${card.id}`, { method: 'PUT' });
-      request.catch((e) => {
-        // Put the card back on top if the server refused the choice.
-        setError(describeError(e));
-        setQueue((q) => [card, ...q.filter((c) => c.id !== card.id)]);
-        setRemaining((r) => r + 1);
-        setHistory((h) => h.filter((x) => x.card.id !== card.id));
-      });
+      if (choice === 'like') {
+        like({ id: card.id, slug: card.slug, display_name: card.display_name, establishment_name: card.establishment_name,
+          city: card.city ?? null, photo: card.photos[0] ?? null });
+      } else {
+        pass(card.id);
+      }
     },
     [top, exiting],
   );
@@ -99,17 +115,12 @@ function DeckBody({ initial }: { initial: Deck }) {
     const last = history[history.length - 1];
     if (!last || exiting) return;
     setError(null);
-    try {
-      if (last.choice === 'like') await api(`/client/favorites/${last.card.id}`, { method: 'DELETE' });
-      else await api(`/client/dislikes/${last.card.id}`, { method: 'DELETE' });
-      setHistory((h) => h.slice(0, -1));
-      setQueue((q) => [last.card, ...q]);
-      setRemaining((r) => r + 1);
-      setPhoto(0);
-      setAnnounce(`${last.card.display_name} revient dans la pile`);
-    } catch (e) {
-      setError(describeError(e));
-    }
+    forget(last.card.id);
+    setHistory((h) => h.slice(0, -1));
+    setQueue((q) => [last.card, ...q]);
+    setRemaining((r) => r + 1);
+    setPhoto(0);
+    setAnnounce(`${last.card.display_name} revient dans la pile`);
   }, [history, exiting]);
 
   // Keyboard: ← pass, → like, Backspace undo.
@@ -159,8 +170,8 @@ function DeckBody({ initial }: { initial: Deck }) {
   const restore = async () => {
     setError(null);
     try {
-      await api('/client/dislikes', { method: 'DELETE' });
-      const d = await api<Deck>(`/client/discover?limit=${BATCH}`);
+      clearPassed();
+      const d = await fetchDeck(filters);
       seen.current = new Set(d.items.map((c) => c.id));
       setQueue(d.items);
       setRemaining(d.remaining);
@@ -196,7 +207,7 @@ function DeckBody({ initial }: { initial: Deck }) {
             onPointerCancel={() => { start.current = null; setDrag({ x: 0, y: 0, active: false }); }}
             role="group"
             aria-roledescription="carte"
-            aria-label={`${top.display_name}${top.age != null ? `, ${top.age} ans` : ''}`}
+            aria-label={top.display_name}
           >
             <span className="os-deck__stamp os-deck__stamp--like" style={{ opacity: likeOpacity }}>J’aime</span>
             <span className="os-deck__stamp os-deck__stamp--pass" style={{ opacity: passOpacity }}>Passer</span>
@@ -204,8 +215,10 @@ function DeckBody({ initial }: { initial: Deck }) {
           </div>
         </div>
       ) : (
-        <EmptyState title="Tu as vu tous les profils disponibles">
-          Reviens plus tard pour découvrir de nouvelles personnes, ou revois celles que tu as passées.
+        <EmptyState title={countFilters(filters) ? 'Aucun profil ne correspond à tes filtres' : 'Tu as vu tous les profils disponibles'}>
+          {countFilters(filters)
+            ? 'Élargis tes filtres, ou revois les profils que tu as passés.'
+            : 'Reviens plus tard pour découvrir de nouvelles personnes, ou revois celles que tu as passées.'}
         </EmptyState>
       )}
 
@@ -227,12 +240,16 @@ function DeckBody({ initial }: { initial: Deck }) {
       ) : (
         <HStack gap="3" wrap="wrap" justify="center">
           <Button colorPalette="brand" onClick={() => void restore()}>Revoir les profils passés</Button>
-          <Button asChild variant="outline"><a href="/client/espace">Voir mes favoris</a></Button>
+          {countFilters(filters) > 0 && <Button variant="outline" onClick={onClearFilters}>Effacer les filtres</Button>}
+          <Button asChild variant="outline"><a href="/favoris">Voir mes favoris</a></Button>
           {history.length > 0 && <Button variant="ghost" onClick={() => void undo()}>Annuler le dernier choix</Button>}
         </HStack>
       )}
       <Text fontSize="xs" color="fg.subtle" textAlign="center">
         Glisse la carte · ← passer · → j’aime · Retour arrière pour annuler · touche la photo pour la suivante
+      </Text>
+      <Text fontSize="xs" color="fg.subtle" textAlign="center">
+        Sans compte : tes choix restent dans ce navigateur. <a href="/favoris">Mes favoris</a>
       </Text>
       {error && <Text color="danger" role="alert">{error}</Text>}
     </Stack>
@@ -252,8 +269,7 @@ function DeckCard({ card, photo, behind = false }: { card: Card; photo: number; 
       {!behind && (
         <div className="os-deck__info">
           <h2>
-            {card.display_name}
-            {card.age != null && <span>, {card.age}</span>}
+            {card.display_name}{card.age ? <span className="os-deck__age">, {card.age}</span> : null}
           </h2>
           <p className="os-deck__meta">
             {card.establishment_name}

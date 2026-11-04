@@ -9,26 +9,12 @@ import (
 	"github.com/google/uuid"
 )
 
-type RegisterClientRequest struct {
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	AcceptTerms bool   `json:"accept_terms"`
-}
-
 type RegisterManagerRequest struct {
 	Username    string `json:"username"`
 	Password    string `json:"password"`
 	AcceptTerms bool   `json:"accept_terms"`
 	AcceptCGV   bool   `json:"accept_cgv"`
 	AcceptDPA   bool   `json:"accept_dpa"`
-}
-
-type RegisterProfessionalRequest struct {
-	Username          string `json:"username"`
-	Password          string `json:"password"`
-	EstablishmentSlug string `json:"establishment_slug"`
-	DisplayName       string `json:"display_name"`
-	AcceptTerms       bool   `json:"accept_terms"`
 }
 
 type LoginRequest struct {
@@ -81,6 +67,7 @@ type ProfileRequest struct {
 	DisplayName     string            `json:"display_name"`
 	Headline        string            `json:"headline"`
 	Description     string            `json:"description"`
+	Age             *int              `json:"age"`
 	HeightCm        *int              `json:"height_cm"`
 	WeightKg        *int              `json:"weight_kg"`
 	HairColor       *string           `json:"hair_color"`
@@ -102,12 +89,6 @@ type RateRequest struct {
 
 type RatesRequest struct {
 	Rates []RateRequest `json:"rates"`
-}
-
-type AttestationRequest struct {
-	BirthDate           string `json:"birth_date"`
-	EmploymentReference string `json:"employment_reference"`
-	Attested            bool   `json:"attested"`
 }
 
 type PhotoPatchRequest struct {
@@ -143,4 +124,41 @@ type RegionRequest struct {
 	Name     string     `json:"name"`
 	Kind     string     `json:"kind"`
 	IsActive *bool      `json:"is_active"`
+}
+
+// ProfileCreateRequest creates a profile of the house; username and
+// password, when given, create the professional's login (ADR-022).
+type ProfileCreateRequest struct {
+	ProfileRequest
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type AccountRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// DiscoverRequest asks for deck cards, leaving out the profiles the visitor
+// already liked or passed (kept in the browser, ADR-023).
+type DiscoverRequest struct {
+	Exclude []uuid.UUID     `json:"exclude"`
+	Limit   int             `json:"limit"`
+	Filters DiscoverFilters `json:"filters"`
+}
+
+// DiscoverFilters narrow the deck. Lists match any of their values; empty
+// fields do not filter. Prices are in euros.
+type DiscoverFilters struct {
+	City       string   `json:"city"`
+	HairColors []string `json:"hair_color"`
+	EyeColors  []string `json:"eye_color"`
+	SkinTones  []string `json:"skin_tone"`
+	Genders    []string `json:"gender"`
+	HeightMin  int      `json:"height_min"`
+	HeightMax  int      `json:"height_max"`
+	AgeMin     int      `json:"age_min"`
+	AgeMax     int      `json:"age_max"`
+	PriceMin   int      `json:"price_min"`
+	PriceMax   int      `json:"price_max"`
 }

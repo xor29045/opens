@@ -15,45 +15,34 @@ func contactTypes(m map[string]any) map[string]bool {
 	return out
 }
 
-// Scenario 8: contact visibility is filtered server-side.
+// Scenario 8: contact visibility is filtered server-side. The catalogue is
+// public and there are no client accounts (ADR-023).
 func TestContactVisibility(t *testing.T) {
 	e := newEnv(t)
 	adm := e.adminAccount()
 	m, slug := e.readyManager()
-	p, _ := e.publishedProfile(m, slug)
+	p, id := e.publishedProfile(m, slug)
 	e.subscribeAndPay(m)
-	otherM, otherSlug := e.readyManager()
-	otherP := e.register("professional", map[string]any{"establishment_slug": otherSlug})
-	client := e.register("client", nil)
-	suspended := e.register("client", nil)
-	profSlug := e.get("/api/v1/profiles", client.Token).JSON()["items"].([]any)[0].(map[string]any)["slug"].(string)
+	otherM, _ := e.readyManager()
+	otherP, _ := e.hire(otherM, "Nina")
+	profSlug := e.browse("/api/v1/profiles").expect(200).JSON()["items"].([]any)[0].(map[string]any)["slug"].(string)
 	path := "/api/v1/profiles/" + profSlug
 
-	for name, tok := range map[string]string{"other manager": otherM.Token, "other pro": otherP.Token} {
-		got := e.get(path, tok).expect(200).JSON()
-		ct := contactTypes(got)
-		if !ct["PHONE"] || ct["WHATSAPP"] || ct["TELEGRAM"] || got["contacts_restricted"] != true {
-			t.Errorf("%s sees %v", name, ct)
-		}
-	}
-	for name, tok := range map[string]string{"client": client.Token, "own manager": m.Token, "own pro": p.Token, "admin": adm.Token} {
+	for name, tok := range map[string]string{"visitor": "", "other manager": otherM.Token, "other pro": otherP.Token,
+		"own manager": m.Token, "own pro": p.Token, "admin": adm.Token} {
 		ct := contactTypes(e.get(path, tok).expect(200).JSON())
 		if !ct["PHONE"] || !ct["WHATSAPP"] || ct["TELEGRAM"] {
 			t.Errorf("%s sees %v", name, ct)
 		}
 	}
-	e.post("/api/v1/admin/users/"+suspended.ID+"/suspend", adm.Token, map[string]any{"reason": "abus"}).expect(204)
-	if ct := contactTypes(e.get(path, suspended.Token).expect(200).JSON()); ct["WHATSAPP"] {
-		t.Error("suspended client sees CLIENTS contacts")
-	}
-	// Anonymous visitors cannot read the catalogue.
-	e.get(path, "").expect(http.StatusUnauthorized)
-	e.get("/api/v1/profiles", "").expect(http.StatusUnauthorized)
-	e.get("/api/v1/establishments/"+slug, "").expect(http.StatusUnauthorized)
+	// "Clients only" no longer exists.
+	e.put("/api/v1/manager/profiles/"+id+"/contacts", m.Token, map[string]any{"contacts": []any{
+		map[string]any{"type": "PHONE", "value": "+32470111111", "visibility": "CLIENTS"},
+	}}).expect(http.StatusUnprocessableEntity)
 	// Establishment page: verification phone and private address never exposed.
-	est := e.get("/api/v1/establishments/"+slug, client.Token).expect(200)
+	est := e.browse("/api/v1/establishments/" + slug).expect(200)
 	if bytes.Contains(est.Body, []byte("+32470000001")) || bytes.Contains(est.Body, []byte("Rue X")) || !bytes.Contains(est.Body, []byte("+32470000003")) {
-		t.Fatalf("client view of establishment contacts: %s", est.Body)
+		t.Fatalf("visitor view of establishment contacts: %s", est.Body)
 	}
 	// Stats count the views (aggregated).
 	st := e.get("/api/v1/manager/stats", m.Token).expect(200).JSON()
@@ -81,14 +70,9 @@ func TestPublicationConditions(t *testing.T) {
 		t.Fatal("hidden profile published")
 	}
 	e.post("/api/v1/admin/profiles/"+id+"/unhide", adm.Token, map[string]any{}).expect(204)
-	// Attestation removed.
-	e.del("/api/v1/manager/profiles/"+id+"/attestation", m.Token, nil).expect(204)
-	if published() {
-		t.Fatal("unattested profile published")
-	}
-	e.put("/api/v1/manager/profiles/"+id+"/attestation", m.Token, map[string]any{"birth_date": "1990-01-01", "employment_reference": "CT-2", "attested": true}).expect(200)
+	// No age attestation any more: an unhidden profile is published again.
 	if !published() {
-		t.Fatal("re-attested profile should be published")
+		t.Fatal("unhidden profile should be published again")
 	}
 	// Linked account suspended by the manager.
 	e.post("/api/v1/manager/profiles/"+id+"/account/suspend", m.Token, map[string]any{"reason": "absence"}).expect(204)
@@ -110,7 +94,7 @@ func TestPublicationConditions(t *testing.T) {
 	if !published() {
 		t.Fatal("new photo should republish")
 	}
-	// Editing the establishment page never unpublishes (no re-verification).
+	// Editing the establishment page never unpublishes.
 	est := e.get("/api/v1/manager/establishment", m.Token).JSON()
 	region := est["region"].(map[string]any)["id"]
 	city := est["city"].(map[string]any)["id"]
@@ -127,13 +111,12 @@ func TestPublicationConditions(t *testing.T) {
 	if d2["publication"].(map[string]any)["published"].(bool) || !contains(d2["publication"].(map[string]any)["reasons"], "ACTIVE_PROFILES_QUOTA_EXCEEDED") {
 		t.Fatalf("quota not enforced: %v", d2["publication"])
 	}
-	// Archive suspends the linked account and invalidates the attestation.
+	// Archive suspends the linked account and unpublishes the profile.
 	e.post("/api/v1/manager/profiles/"+id+"/archive", m.Token, nil).expect(204)
 	if published() {
 		t.Fatal("archived profile published")
 	}
 	e.login(p.Username, p.Password).expect(401)
-	e.post("/api/v1/manager/profiles/"+id+"/activate", m.Token, nil).expect(422)
 	if !e.get("/api/v1/manager/profiles/"+id2, m.Token).JSON()["publication"].(map[string]any)["published"].(bool) {
 		t.Fatal("the freed quota slot should go to the second profile")
 	}
@@ -145,38 +128,11 @@ func TestPublicationConditions(t *testing.T) {
 	e.browse("/api/v1/establishments/" + slug).expect(404)
 }
 
-// Scenario 7: favourites are private and survive unpublication as "unavailable".
-func TestFavorites(t *testing.T) {
-	e := newEnv(t)
-	adm := e.adminAccount()
-	m, slug := e.readyManager()
-	_, id := e.publishedProfile(m, slug)
-	e.subscribeAndPay(m)
-	a := e.register("client", nil)
-	b := e.register("client", nil)
-	e.put("/api/v1/client/favorites/"+id, a.Token, nil).expect(204)
-	e.put("/api/v1/client/favorites/"+id, a.Token, nil).expect(204) // idempotent
-	if e.get("/api/v1/client/favorites", b.Token).JSON()["total"].(float64) != 0 {
-		t.Fatal("B sees A's favourites")
-	}
-	e.del("/api/v1/client/favorites/"+id, b.Token, nil).expect(404)
-	e.post("/api/v1/admin/profiles/"+id+"/hide", adm.Token, map[string]any{"reason": "x"}).expect(204)
-	fav := e.get("/api/v1/client/favorites", a.Token).expect(200).JSON()["items"].([]any)[0].(map[string]any)
-	if fav["available"].(bool) {
-		t.Fatal("unpublished favourite should be unavailable")
-	}
-	// Account deletion requires the password.
-	e.del("/api/v1/client/me", a.Token, map[string]any{"password": "wrong"}).expect(403)
-	e.del("/api/v1/client/me", a.Token, map[string]any{"password": pwd}).expect(204)
-	e.get("/api/v1/client/me", a.Token).expect(401)
-	e.login(a.Username, pwd).expect(401)
-}
-
 // Scenario 13: uploads are validated and re-encoded without EXIF.
 func TestUploads(t *testing.T) {
 	e := newEnv(t)
-	_, slug := e.readyManager()
-	p := e.register("professional", map[string]any{"establishment_slug": slug})
+	m, _ := e.readyManager()
+	p, _ := e.hire(m, "Lola")
 	for name, data := range map[string][]byte{
 		"svg":  []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`),
 		"html": []byte("<html><script>alert(1)</script></html>"),

@@ -1,8 +1,0 @@
----
-import Public from '../../layouts/Public.astro';
-import AuthForms from '../../features/auth/AuthForms.tsx';
-const next = Astro.url.searchParams.get('next');
----
-<Public title="Inscription client" noindex={true}>
-  <AuthForms kind="client" mode="register" next={next} client:only="react" />
-</Public>

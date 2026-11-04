@@ -174,6 +174,7 @@ type Profile struct {
 	DisplayName         string
 	Headline            string
 	Description         string
+	Age                 *int16
 	HeightCm            *int16
 	WeightKg            *int16
 	HairColor           *string
@@ -232,12 +233,6 @@ type ProfileRate struct {
 type ProfessionalCategory struct {
 	ProfileID  uuid.UUID `gorm:"type:uuid;primaryKey"`
 	CategoryID uuid.UUID `gorm:"type:uuid;primaryKey"`
-}
-
-type Favorite struct {
-	ClientUserID uuid.UUID `gorm:"type:uuid;primaryKey"`
-	ProfileID    uuid.UUID `gorm:"type:uuid;primaryKey"`
-	CreatedAt    time.Time
 }
 
 type SubscriptionPlan struct {
@@ -343,10 +338,3 @@ const (
 	PaymentExpired    = "EXPIRED"
 	PaymentRefunded   = "REFUNDED"
 )
-
-// ClientDislike hides a profile from the client's "Découvrir" deck.
-type ClientDislike struct {
-	ClientUserID uuid.UUID `gorm:"type:uuid;primaryKey"`
-	ProfileID    uuid.UUID `gorm:"type:uuid;primaryKey"`
-	CreatedAt    time.Time
-}

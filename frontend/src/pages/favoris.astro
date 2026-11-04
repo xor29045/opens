@@ -1,0 +1,7 @@
+---
+import Public from '../layouts/Public.astro';
+import Favorites from '../features/client/Favorites.tsx';
+---
+<Public title="Mes favoris" noindex={true}>
+  <Favorites client:only="react" />
+</Public>

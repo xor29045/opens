@@ -5,7 +5,6 @@ import (
 
 	"opensex/backend/internal/apperr"
 	"opensex/backend/internal/dto"
-	"opensex/backend/internal/models"
 	"opensex/backend/internal/repositories"
 	"opensex/backend/internal/services"
 )
@@ -145,8 +144,7 @@ func (h *Handler) adminUsers(c *gin.Context, role string) {
 	ok(c, dto.Paginate(dto.MapSlice(rows, dto.NewAdminUser), p, total))
 }
 
-func (h *Handler) AdminUsers(c *gin.Context)   { h.adminUsers(c, "") }
-func (h *Handler) AdminClients(c *gin.Context) { h.adminUsers(c, models.RoleClient) }
+func (h *Handler) AdminUsers(c *gin.Context) { h.adminUsers(c, "") }
 
 func (h *Handler) AdminUser(c *gin.Context) {
 	id, valid := uuidParam(c, "id")

@@ -4,19 +4,24 @@ import { Badge, Box, Button, Grid, HStack, Heading, Link, List, Stack, Text, Ima
 import Providers from '../../components/Providers';
 import { Section } from '../../components/ui';
 import { QueryBlock } from '../dashboard/shared';
-import { useSession } from '../../lib/auth/useSession';
+import { useStore } from '@nanostores/react';
+import { forget, like, likesAtom } from '../../lib/likes';
 import { api } from '../../lib/api/client';
-import { describeError } from '../../lib/api/problem';
 import { eur } from '../../lib/format';
+import { bodyTypes, eyeColors, genders, hairColors, labelOf, skinTones } from '../../lib/attributes';
 import { contactHref, contactLabels, type PublicProfile } from './types';
 
 function Details({ p }: { p: PublicProfile }) {
+  const attrs = p.extra_attributes as Record<string, string>;
   const rows: [string, string | null | undefined][] = [
+    ['Âge', p.age ? `${p.age} ans` : null],
+    ['Genre', labelOf(genders, attrs.gender)],
     ['Taille', p.height_cm ? `${p.height_cm} cm` : null],
     ['Poids', p.weight_kg ? `${p.weight_kg} kg` : null],
-    ['Cheveux', p.hair_color],
-    ['Yeux', p.eye_color],
-    ['Morphologie', p.body_type],
+    ['Cheveux', labelOf(hairColors, p.hair_color)],
+    ['Yeux', labelOf(eyeColors, p.eye_color)],
+    ['Peau', labelOf(skinTones, attrs.skin_tone)],
+    ['Morphologie', labelOf(bodyTypes, p.body_type)],
     ['Langues', p.languages.length ? p.languages.join(', ') : null],
   ];
   return (
@@ -35,33 +40,24 @@ function Details({ p }: { p: PublicProfile }) {
   );
 }
 
-function FavoriteButton({ slug, profileId }: { slug: string; profileId: string }) {
-  const { user } = useSession();
-  const [added, setAdded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  if (!user || user.role !== 'CLIENT') return null;
-  const toggle = async () => {
-    setError(null);
-    try {
-      if (added) await api(`/client/favorites/${profileId}`, { method: 'DELETE' });
-      else await api(`/client/favorites/${profileId}`, { method: 'PUT' });
-      setAdded(!added);
-    } catch (e) {
-      setError(describeError(e));
-    }
+// Likes are kept in this browser (ADR-023), shared with the "Découvrir" deck.
+function FavoriteButton({ p }: { p: PublicProfile }) {
+  const { liked } = useStore(likesAtom);
+  const added = liked.some((l) => l.id === p.id);
+  const toggle = () => {
+    if (added) forget(p.id);
+    else like({ id: p.id, slug: p.slug, display_name: p.display_name, establishment_name: p.establishment.display_name,
+      city: p.establishment.city?.name ?? null, photo: p.photos[0]?.url ?? null });
   };
   return (
-    <Stack>
-      <Button variant={added ? 'solid' : 'outline'} colorPalette="brand" size="sm" onClick={toggle} aria-label={`${added ? 'Retirer' : 'Ajouter'} ${slug} des favoris`}>
-        {added ? 'Dans mes favoris' : 'Ajouter aux favoris'}
-      </Button>
-      {error && <Text color="danger" fontSize="sm" role="alert">{error}</Text>}
-    </Stack>
+    <Button variant={added ? 'solid' : 'outline'} colorPalette="brand" size="sm" alignSelf="flex-start" onClick={toggle}
+      aria-pressed={added} aria-label={`${added ? 'Retirer' : 'Ajouter'} ${p.display_name} ${added ? 'des' : 'aux'} favoris`}>
+      {added ? 'Dans mes favoris' : 'Ajouter aux favoris'}
+    </Button>
   );
 }
 
 function Contacts({ p }: { p: PublicProfile }) {
-  const { user } = useSession();
   return (
     <Stack gap="2">
       {p.contacts.length === 0 && <Text color="fg.muted">Aucune coordonnée publique.</Text>}
@@ -80,9 +76,7 @@ function Contacts({ p }: { p: PublicProfile }) {
       })}
       {p.contacts_restricted && (
         <Text fontSize="sm" color="fg.muted">
-          {user ? 'Certaines coordonnées ne sont pas accessibles avec ton compte.' : (
-            <>Certaines coordonnées sont réservées aux clients inscrits. <Link href="/client/login">Connexion</Link> · <Link href="/client/register">Créer un compte</Link></>
-          )}
+          Certaines coordonnées ne sont pas publiques.
         </Text>
       )}
     </Stack>
@@ -133,12 +127,12 @@ export function ProfileInner({ profile: p }: { profile: PublicProfile }) {
           )}
         </Box>
         <Stack gap="4">
-          <Heading size="4xl" fontWeight="500">{p.display_name}{p.age != null ? `, ${p.age} ans` : ''}</Heading>
+          <Heading size="4xl" fontWeight="500">{p.display_name}</Heading>
           {p.headline && <Text fontSize="lg">{p.headline}</Text>}
           <HStack wrap="wrap" gap="2">
             {p.categories.map((c) => <Badge key={c.slug} variant="subtle">{c.name}</Badge>)}
           </HStack>
-          <FavoriteButton slug={p.slug} profileId={p.id} />
+          <FavoriteButton p={p} />
           <Section title="Tarifs">
             {p.rates.length === 0 ? <Text color="fg.muted">Non renseignés.</Text> : (
               <List.Root gap="2" listStyle="none">
@@ -168,8 +162,8 @@ export function ProfileInner({ profile: p }: { profile: PublicProfile }) {
   );
 }
 
-// The catalogue is reserved to signed-in users: the profile is loaded in the
-// browser with the access token (the page itself is behind the login guard).
+// The catalogue is public (ADR-023); a staff session, when present, is still
+// sent so a house sees its own restricted contacts.
 function ProfileLoader({ slug }: { slug: string }) {
   const q = useQuery({
     queryKey: ['catalog', 'profile', slug],

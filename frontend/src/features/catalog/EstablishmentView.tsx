@@ -50,7 +50,7 @@ function EstablishmentInner({ est }: { est: PublicEstablishment }) {
                 );
               })}
               {est.contacts_restricted && (
-                <Text fontSize="sm" color="fg.muted">Certaines coordonnées sont réservées aux clients inscrits.</Text>
+                <Text fontSize="sm" color="fg.muted">Certaines coordonnées ne sont pas publiques.</Text>
               )}
             </Stack>
           </Section>

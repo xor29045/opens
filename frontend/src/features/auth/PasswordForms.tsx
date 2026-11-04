@@ -17,7 +17,7 @@ function ChangePasswordInner() {
 
   if (status === 'loading') return <PageLoader />;
   if (status === 'anonymous' || !user) {
-    if (typeof window !== 'undefined') window.location.replace('/client/login');
+    if (typeof window !== 'undefined') window.location.replace('/gerant/login');
     return null;
   }
 
@@ -101,7 +101,7 @@ function RecoverInner() {
       <Stack gap="4" maxW="md" mx="auto" py="8">
         <Heading size="xl">Mot de passe réinitialisé</Heading>
         <Text>Tes autres sessions ont été fermées. Connecte-toi avec ton nouveau mot de passe.</Text>
-        <a href="/client/login">Connexion</a>
+        <Stack gap="1"><a href="/gerant/login">Connexion gérant</a><a href="/pro/login">Connexion professionnel·le</a></Stack>
       </Stack>
     );
   }

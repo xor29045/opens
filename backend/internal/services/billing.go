@@ -515,10 +515,10 @@ func (s *BillingService) markPaid(ctx context.Context, p *models.Payment) error 
 	if err := s.issueInvoice(ctx, p, now); err != nil {
 		return err
 	}
-	// Once the subscription is paid, attested profiles go in service without
-	// waiting for a manual step (ADR-020). Pending registrations still need
-	// the manager's age attestation.
-	if _, err := s.Repos.Profiles.ActivateAttestedDrafts(ctx, sub.EstablishmentID, now); err != nil {
+	// Once the subscription is paid, every draft profile goes in service
+	// without a further step (ADR-021). Pending registrations still need the
+	// house's acceptance.
+	if _, err := s.Repos.Profiles.ActivateDrafts(ctx, sub.EstablishmentID, now); err != nil {
 		return apperr.Internal(err)
 	}
 	return s.Publication.Recompute(ctx, sub.EstablishmentID)

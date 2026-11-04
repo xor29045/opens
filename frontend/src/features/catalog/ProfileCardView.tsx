@@ -14,7 +14,6 @@ export default function ProfileCardView({ card }: { card: ProfileCard }) {
       <div className="os-card__body">
         <h3 className="os-card__name">
           {card.display_name}
-          {card.age != null && <span>, {card.age}</span>}
         </h3>
         <p className="os-card__meta">
           {card.establishment.display_name}

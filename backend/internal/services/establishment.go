@@ -220,7 +220,7 @@ func normalizeContacts(in []ContactInput, allowVerification bool) ([]ContactInpu
 			c.Add(field+".type", "invalid_contact_type")
 			continue
 		}
-		if !validators.OneOf(ct.Visibility, []string{models.VisibilityPublic, models.VisibilityClients, models.VisibilityHidden}) {
+		if !validators.OneOf(ct.Visibility, []string{models.VisibilityPublic, models.VisibilityHidden}) {
 			c.Add(field+".visibility", "invalid_visibility")
 		}
 		v, code := validators.NormalizeContact(ct.Type, ct.Value)

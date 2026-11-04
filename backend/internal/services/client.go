@@ -7,45 +7,15 @@ import (
 	"github.com/google/uuid"
 
 	"opensex/backend/internal/apperr"
-	"opensex/backend/internal/database"
 	"opensex/backend/internal/models"
-	"opensex/backend/internal/rbac"
 	"opensex/backend/internal/repositories"
 	"opensex/backend/internal/validators"
 )
 
-// ClientService manages the CLIENT space: account and favourites (RM-50, RM-51).
+// ClientService serves the anonymous "Découvrir" deck and the account
+// deletion helper shared by the other services. There are no client accounts
+// anymore (ADR-023).
 type ClientService struct{ *Services }
-
-func (s *ClientService) Me(ctx context.Context, actor *rbac.Actor) (*models.User, error) {
-	u, err := s.Repos.Users.ByID(ctx, actor.UserID)
-	if err != nil {
-		return nil, apperr.Internal(err)
-	}
-	return u, nil
-}
-
-// DeleteAccount soft-deletes the client account after password confirmation;
-// the data is purged after 30 days.
-func (s *ClientService) DeleteAccount(ctx context.Context, actor *rbac.Actor, pwd string) error {
-	u, err := s.Repos.Users.ByID(ctx, actor.UserID)
-	if err != nil {
-		return apperr.Internal(err)
-	}
-	if ok, _, _ := s.Hasher.Verify(ctx, pwd, u.PasswordHash); !ok {
-		return apperr.New(apperr.KindForbidden, "invalid_password", "password is incorrect")
-	}
-	err = s.tx(ctx, func(ctx context.Context) error {
-		if err := s.deleteAccount(ctx, u.ID); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err == nil {
-		_ = s.Denylist.DenyUser(ctx, u.ID)
-	}
-	return err
-}
 
 // deleteAccount anonymises and soft-deletes a user and revokes its sessions.
 func (s *ClientService) deleteAccount(ctx context.Context, userID uuid.UUID) error {
@@ -61,54 +31,6 @@ func (s *ClientService) deleteAccount(ctx context.Context, userID uuid.UUID) err
 	return s.Auth.RevokeAllSessions(ctx, userID, nil, models.RevokeDeleted)
 }
 
-func (s *ClientService) Favorites(ctx context.Context, actor *rbac.Actor, page repositories.Page) ([]repositories.FavoriteRow, int64, error) {
-	rows, total, err := s.Repos.Favorites.List(ctx, actor.UserID, page)
-	if err != nil {
-		return nil, 0, apperr.Internal(err)
-	}
-	return rows, total, nil
-}
-
-// AddFavorite is idempotent; only published profiles can be added.
-func (s *ClientService) AddFavorite(ctx context.Context, actor *rbac.Actor, profileID uuid.UUID) error {
-	p, err := s.Repos.Profiles.ByID(ctx, profileID)
-	if err != nil || !p.IsPublished {
-		if err == nil || database.IsNotFound(err) {
-			return apperr.NotFound("profile")
-		}
-		return apperr.Internal(err)
-	}
-	if err := s.Repos.Favorites.Add(ctx, actor.UserID, profileID, s.now()); err != nil {
-		return apperr.Internal(err)
-	}
-	return nil
-}
-
-func (s *ClientService) RemoveFavorite(ctx context.Context, actor *rbac.Actor, profileID uuid.UUID) error {
-	ok, err := s.Repos.Favorites.Remove(ctx, actor.UserID, profileID)
-	if err != nil {
-		return apperr.Internal(err)
-	}
-	if !ok {
-		return apperr.NotFound("favorite")
-	}
-	return nil
-}
-
-// Rename changes the client's username (RM-03 rules apply).
-func (s *ClientService) Rename(ctx context.Context, actor *rbac.Actor, username string) (*models.User, error) {
-	if code := validators.Username(username); code != "" {
-		return nil, apperr.Invalid("username", code)
-	}
-	if err := s.Repos.Users.Update(ctx, actor.UserID, map[string]any{"username": username}); err != nil {
-		if database.IsUniqueViolation(err) {
-			return nil, apperr.Conflict("username_taken", "username already taken")
-		}
-		return nil, apperr.Internal(err)
-	}
-	return s.Me(ctx, actor)
-}
-
 // ---------------------------------------------------------------- "Découvrir" deck
 
 // DiscoverCard is a profile proposed in the like / dislike deck. It carries
@@ -118,8 +40,8 @@ type DiscoverCard struct {
 	Slug           string    `json:"slug"`
 	DisplayName    string    `json:"display_name"`
 	Headline       string    `json:"headline"`
-	Age            *int      `json:"age"`
 	PriceFromCents *int64    `json:"price_from_cents"`
+	Age            *int16    `json:"age"`
 	Languages      []string  `json:"languages"`
 	Photos         []string  `json:"photos"`
 	Categories     []string  `json:"categories"`
@@ -134,15 +56,52 @@ type DiscoverResult struct {
 
 const maxDeckPhotos = 6
 
-// Discover returns a batch of published profiles the client has not rated yet.
-func (s *ClientService) Discover(ctx context.Context, actor *rbac.Actor, limit int) (*DiscoverResult, error) {
+// Limits of the anonymous deck requests.
+const (
+	MaxDeckExclude = 1000
+	MaxDeckIDs     = 200
+)
+
+// Discover returns a batch of published profiles the visitor has not rated
+// yet; exclude holds the likes and passes kept in the browser (ADR-023).
+func (s *ClientService) Discover(ctx context.Context, f repositories.CatalogFilter, exclude []uuid.UUID, limit int) (*DiscoverResult, error) {
 	if limit < 1 || limit > 30 {
 		limit = 15
 	}
-	rows, remaining, err := s.Repos.Favorites.Discover(ctx, actor.UserID, limit)
+	if len(exclude) > MaxDeckExclude {
+		return nil, apperr.Invalid("exclude", "too_many_items")
+	}
+	if err := validateDeckFilter(f); err != nil {
+		return nil, err
+	}
+	rows, remaining, err := s.Repos.Favorites.Discover(ctx, f, exclude, limit)
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
+	items, err := s.cards(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
+	return &DiscoverResult{Items: items, Remaining: remaining}, nil
+}
+
+// Cards describes the liked profiles still published (favorites page); the
+// others are simply absent from the answer.
+func (s *ClientService) Cards(ctx context.Context, ids []uuid.UUID) ([]DiscoverCard, error) {
+	if len(ids) > MaxDeckIDs {
+		return nil, apperr.Invalid("ids", "too_many_items")
+	}
+	if len(ids) == 0 {
+		return []DiscoverCard{}, nil
+	}
+	rows, err := s.Repos.Favorites.Published(ctx, ids)
+	if err != nil {
+		return nil, apperr.Internal(err)
+	}
+	return s.cards(ctx, rows)
+}
+
+func (s *ClientService) cards(ctx context.Context, rows []repositories.DiscoverRow) ([]DiscoverCard, error) {
 	ids := make([]uuid.UUID, len(rows))
 	for i, r := range rows {
 		ids[i] = r.ID
@@ -167,11 +126,10 @@ func (s *ClientService) Discover(ctx context.Context, actor *rbac.Actor, limit i
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
-	now := s.now()
-	out := &DiscoverResult{Items: make([]DiscoverCard, 0, len(rows)), Remaining: remaining}
+	out := make([]DiscoverCard, 0, len(rows))
 	for _, r := range rows {
-		card := DiscoverCard{ID: r.ID, Slug: r.Slug, DisplayName: r.DisplayName, Headline: r.Headline, Age: ageOf(r.BirthDateAttested, now),
-			PriceFromCents: r.PriceFromCents, Languages: []string(r.Languages), Photos: byProfile[r.ID], Categories: []string{},
+		card := DiscoverCard{ID: r.ID, Slug: r.Slug, DisplayName: r.DisplayName, Headline: r.Headline,
+			PriceFromCents: r.PriceFromCents, Age: r.Age, Languages: []string(r.Languages), Photos: byProfile[r.ID], Categories: []string{},
 			Establishment: r.EstablishmentName, City: r.CityName}
 		if card.Languages == nil {
 			card.Languages = []string{}
@@ -182,48 +140,54 @@ func (s *ClientService) Discover(ctx context.Context, actor *rbac.Actor, limit i
 		for _, c := range cats[r.ID] {
 			card.Categories = append(card.Categories, c.Name)
 		}
-		out.Items = append(out.Items, card)
+		out = append(out, card)
 	}
 	return out, nil
 }
 
-// Dislike hides a published profile from the deck (and from the favorites).
-func (s *ClientService) Dislike(ctx context.Context, actor *rbac.Actor, profileID uuid.UUID) error {
-	p, err := s.Repos.Profiles.ByID(ctx, profileID)
-	if err != nil || !p.IsPublished {
-		if err == nil || database.IsNotFound(err) {
-			return apperr.NotFound("profile")
+// validateDeckFilter checks the "Découvrir" filters against the closed
+// vocabularies (GET /attributes).
+func validateDeckFilter(f repositories.CatalogFilter) error {
+	var c apperr.Collector
+	if f.City != "" && !validators.IsSlug(f.City) {
+		c.Add("filters.city", "invalid_slug")
+	}
+	lists := []struct {
+		field   string
+		values  []string
+		allowed []string
+	}{
+		{"filters.hair_color", f.HairColors, validators.HairColors},
+		{"filters.eye_color", f.EyeColors, validators.EyeColors},
+		{"filters.skin_tone", f.SkinTones, validators.ExtraAttributes["skin_tone"]},
+		{"filters.gender", f.Genders, validators.ExtraAttributes["gender"]},
+	}
+	for _, l := range lists {
+		if len(l.values) > len(l.allowed) {
+			c.Add(l.field, "too_many_items")
+			continue
 		}
-		return apperr.Internal(err)
-	}
-	return s.tx(ctx, func(ctx context.Context) error {
-		if _, err := s.Repos.Favorites.Remove(ctx, actor.UserID, profileID); err != nil {
-			return apperr.Internal(err)
+		for _, v := range l.values {
+			if !validators.OneOf(v, l.allowed) {
+				c.Add(l.field, "invalid_value")
+				break
+			}
 		}
-		if err := s.Repos.Favorites.AddDislike(ctx, actor.UserID, profileID, s.now()); err != nil {
-			return apperr.Internal(err)
+	}
+	ranges := []struct {
+		field    string
+		min, max int
+		lo, hi   int
+	}{
+		{"filters.height", f.HeightMin, f.HeightMax, 120, 230},
+		{"filters.age", f.AgeMin, f.AgeMax, 18, 99},
+		{"filters.price", int(f.PriceMinCents / 100), int(f.PriceMaxCents / 100), 0, 100000},
+	}
+	for _, r := range ranges {
+		if r.min < 0 || r.max < 0 || (r.min > 0 && (r.min < r.lo || r.min > r.hi)) || (r.max > 0 && (r.max < r.lo || r.max > r.hi)) ||
+			(r.min > 0 && r.max > 0 && r.min > r.max) {
+			c.Add(r.field, "out_of_range")
 		}
-		return nil
-	})
-}
-
-// Undislike cancels a dislike (the profile comes back in the deck).
-func (s *ClientService) Undislike(ctx context.Context, actor *rbac.Actor, profileID uuid.UUID) error {
-	ok, err := s.Repos.Favorites.RemoveDislike(ctx, actor.UserID, profileID)
-	if err != nil {
-		return apperr.Internal(err)
 	}
-	if !ok {
-		return apperr.NotFound("dislike")
-	}
-	return nil
-}
-
-// ClearDislikes brings every passed profile back in the deck.
-func (s *ClientService) ClearDislikes(ctx context.Context, actor *rbac.Actor) (int64, error) {
-	n, err := s.Repos.Favorites.ClearDislikes(ctx, actor.UserID)
-	if err != nil {
-		return 0, apperr.Internal(err)
-	}
-	return n, nil
+	return c.Err()
 }

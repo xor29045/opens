@@ -60,7 +60,6 @@ func (h *Handler) ManagerOverview(c *gin.Context) {
 		"blocking_reasons": o.EstablishmentState,
 		"subscription":     dto.NewSubscription(o.Subscription),
 		"entitled":         o.Entitled,
-		"pending_count":    o.PendingCount,
 		"profiles":         profiles,
 	})
 }

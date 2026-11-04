@@ -70,7 +70,6 @@ type ProfileCard struct {
 	Slug           string                 `json:"slug"`
 	DisplayName    string                 `json:"display_name"`
 	Headline       string                 `json:"headline"`
-	Age            *int                   `json:"age"`
 	PriceFromCents *int64                 `json:"price_from_cents"`
 	PhotoURL       *string                `json:"photo_url"`
 	Establishment  PublicEstablishmentRef `json:"establishment"`
@@ -83,7 +82,7 @@ type PublicProfile struct {
 	DisplayName         string                 `json:"display_name"`
 	Headline            string                 `json:"headline"`
 	Description         string                 `json:"description"`
-	Age                 *int                   `json:"age"`
+	Age                 *int16                 `json:"age"`
 	HeightCm            *int16                 `json:"height_cm"`
 	WeightKg            *int16                 `json:"weight_kg"`
 	HairColor           *string                `json:"hair_color"`
@@ -102,14 +101,6 @@ type PublicProfile struct {
 	Published           bool                   `json:"published"`
 }
 
-func ageOf(b *time.Time, now time.Time) *int {
-	if b == nil {
-		return nil
-	}
-	a := AgeAt(*b, now)
-	return &a
-}
-
 func place(slug, name *string) *PublicPlace {
 	if slug == nil || name == nil {
 		return nil
@@ -124,12 +115,6 @@ type SearchParams struct {
 
 func (s *CatalogService) Search(ctx context.Context, p SearchParams) ([]ProfileCard, int64, error) {
 	var c apperr.Collector
-	if p.AgeMin != 0 && (p.AgeMin < 18 || p.AgeMin > 99) {
-		c.Add("age_min", "out_of_range")
-	}
-	if p.AgeMax != 0 && (p.AgeMax < 18 || p.AgeMax > 99) {
-		c.Add("age_max", "out_of_range")
-	}
 	for _, v := range p.HairColors {
 		if !validators.OneOf(v, validators.HairColors) {
 			c.Add("hair_color", "invalid_value")
@@ -143,6 +128,16 @@ func (s *CatalogService) Search(ctx context.Context, p SearchParams) ([]ProfileC
 	for _, v := range p.BodyTypes {
 		if !validators.OneOf(v, validators.BodyTypes) {
 			c.Add("body_type", "invalid_value")
+		}
+	}
+	for _, v := range p.SkinTones {
+		if !validators.OneOf(v, validators.ExtraAttributes["skin_tone"]) {
+			c.Add("skin_tone", "invalid_value")
+		}
+	}
+	for _, v := range p.Genders {
+		if !validators.OneOf(v, validators.ExtraAttributes["gender"]) {
+			c.Add("gender", "invalid_value")
 		}
 	}
 	for _, v := range p.Languages {
@@ -177,10 +172,9 @@ func (s *CatalogService) cards(ctx context.Context, rows []repositories.CatalogR
 	if err != nil {
 		return nil, apperr.Internal(err)
 	}
-	now := s.now()
 	out := make([]ProfileCard, len(rows))
 	for i, r := range rows {
-		card := ProfileCard{Slug: r.Slug, DisplayName: r.DisplayName, Headline: r.Headline, Age: ageOf(r.BirthDateAttested, now),
+		card := ProfileCard{Slug: r.Slug, DisplayName: r.DisplayName, Headline: r.Headline,
 			PriceFromCents: r.PriceFromCents, PublishedAt: r.PublishedAt,
 			Establishment: PublicEstablishmentRef{Slug: r.EstablishmentSlug, DisplayName: r.EstablishmentName,
 				City: place(r.CitySlug, r.CityName), Region: place(r.RegionSlug, r.RegionName)}}
@@ -199,7 +193,7 @@ func canSeeClientContacts(actor *rbac.Actor, establishmentID uuid.UUID) bool {
 		return false
 	}
 	switch actor.Role {
-	case models.RoleClient, models.RoleAdmin:
+	case models.RoleAdmin:
 		return true
 	case models.RoleManager, models.RoleProfessional:
 		return actor.EstablishmentID == establishmentID
@@ -234,7 +228,7 @@ func (s *CatalogService) build(ctx context.Context, p *models.Profile, mode view
 		return nil, err
 	}
 	out := &PublicProfile{ID: p.ID, Slug: p.Slug, DisplayName: p.DisplayName, Headline: p.Headline, Description: p.Description,
-		Age: ageOf(p.BirthDateAttested, s.now()), HeightCm: p.HeightCm, WeightKg: p.WeightKg, HairColor: p.HairColor,
+		Age: p.Age, HeightCm: p.HeightCm, WeightKg: p.WeightKg, HairColor: p.HairColor,
 		EyeColor: p.EyeColor, BodyType: p.BodyType, Languages: []string(p.Languages), ExtraAttributes: p.ExtraAttributes,
 		PriceFromCents: p.PriceFromCents, Establishment: *ref, Published: p.IsPublished,
 		Photos: []PublicPhoto{}, Rates: []PublicRate{}, Categories: []PublicCategory{}, Contacts: []PublicContact{}}
@@ -281,25 +275,13 @@ type genericContact struct {
 }
 
 // filterContacts removes every contact the viewer may not see. It reports
-// whether CLIENTS contacts exist but were withheld.
+// whether restricted contacts exist but were withheld.
 func (s *CatalogService) filterContacts(ctx context.Context, cs []genericContact, establishmentID, statsProfile uuid.UUID, mode viewMode) ([]PublicContact, bool, bool) {
 	actor := rbac.ActorFrom(ctx)
 	allowClients := mode == viewPreview || canSeeClientContacts(actor, establishmentID)
-	hasClients := false
-	for _, c := range cs {
-		if c.Visibility == models.VisibilityClients && !c.VerificationPhone {
-			hasClients = true
-		}
-	}
+	// There are no client accounts anymore (ADR-023): "CLIENTS" contacts are
+	// only shown to the house itself and the platform.
 	rateLimited := false
-	if allowClients && hasClients && mode == viewPublic && actor.Is(models.RoleClient) {
-		res, err := s.Limiter.Allow(ctx, "contacts:clients:"+actor.UserID.String(), LimitClientContacts...)
-		if err == nil && !res.Allowed {
-			allowClients, rateLimited = false, true
-		} else if statsProfile != uuid.Nil {
-			s.Stats.RecordContactView(ctx, statsProfile)
-		}
-	}
 	out := []PublicContact{}
 	restricted := false
 	for _, c := range cs {
@@ -315,6 +297,10 @@ func (s *CatalogService) filterContacts(ctx context.Context, cs []genericContact
 			pc.Visibility = c.Visibility
 		}
 		out = append(out, pc)
+	}
+	// Contact views are counted for visitors only, not for staff.
+	if mode == viewPublic && statsProfile != uuid.Nil && actor == nil && len(out) > 0 {
+		s.Stats.RecordContactView(ctx, statsProfile)
 	}
 	return out, restricted, rateLimited
 }
@@ -407,14 +393,6 @@ func (s *CatalogService) Categories(ctx context.Context) ([]models.Category, err
 	return c, nil
 }
 
-func (s *CatalogService) SelectableEstablishments(ctx context.Context) ([]repositories.EstablishmentSummary, error) {
-	out, err := s.Repos.Establishments.Selectable(ctx)
-	if err != nil {
-		return nil, apperr.Internal(err)
-	}
-	return out, nil
-}
-
 type Attributes struct {
 	HairColors      []string            `json:"hair_colors"`
 	EyeColors       []string            `json:"eye_colors"`
@@ -429,6 +407,6 @@ type Attributes struct {
 func (s *CatalogService) Attributes() Attributes {
 	return Attributes{HairColors: validators.HairColors, EyeColors: validators.EyeColors, BodyTypes: validators.BodyTypes,
 		Languages: validators.Languages, ExtraAttributes: validators.ExtraAttributes, ContactTypes: models.ContactTypes,
-		Visibilities: []string{models.VisibilityPublic, models.VisibilityClients, models.VisibilityHidden},
+		Visibilities: []string{models.VisibilityPublic, models.VisibilityHidden},
 		Sorts:        []string{"recent", "price_asc", "price_desc"}}
 }

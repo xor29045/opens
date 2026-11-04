@@ -1,0 +1,8 @@
+---
+import Public from '../layouts/Public.astro';
+import DeckIsland from '../features/client/DeckIsland.tsx';
+---
+<Public title="Découvrir" description="Like ou passe les profils des maisons partenaires, sans créer de compte.">
+  <h1 class="visually-hidden">Découvrir</h1>
+  <DeckIsland client:only="react" />
+</Public>

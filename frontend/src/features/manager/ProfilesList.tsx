@@ -18,6 +18,9 @@ function Inner() {
   const [published, setPublished] = useState('');
   const [page, setPage] = useState(1);
   const [name, setName] = useState('');
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const qs = new URLSearchParams({ page: String(page), page_size: '20' });
   if (status) qs.set('status', status);
@@ -30,11 +33,16 @@ function Inner() {
 
   const create = async () => {
     setError(null);
+    setBusy(true);
     try {
-      const p = await api<{ id: string }>('/manager/profiles', { method: 'POST', body: { display_name: name.trim() } });
+      const body: Record<string, string> = { display_name: name.trim() };
+      if (login.trim()) Object.assign(body, { username: login.trim(), password });
+      const p = await api<{ id: string }>('/manager/profiles', { method: 'POST', body });
       window.location.assign(`/gerant/dashboard/profils/${p.id}`);
     } catch (e) {
       setError(describeError(e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -49,16 +57,27 @@ function Inner() {
 
   return (
     <Stack gap="6">
-      <Section title="Créer un profil sans compte">
+      <Section title="Créer une professionnelle">
         <Text fontSize="sm" color="fg.muted" mb="3">
-          Pour une personne qui n’a pas de compte professionnel. Tu gères seul·e ce profil ; il doit être attesté avant publication.
+          Choisis son pseudo et son mot de passe et transmets-les-lui : elle se connecte sur <a href="/pro/login">/pro/login</a> et
+          arrive directement dans l’espace de ta maison. Sans identifiants, tu gères seul·e le profil (tu pourras créer ses accès plus tard).
         </Text>
         <HStack align="flex-end" wrap="wrap">
-          <Field.Root w={{ base: 'full', md: '72' }}>
+          <Field.Root w={{ base: 'full', md: '56' }}>
             <Field.Label>Nom affiché</Field.Label>
             <Input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
           </Field.Root>
-          <Button colorPalette="brand" disabled={!name.trim()} onClick={create}>Créer</Button>
+          <Field.Root w={{ base: 'full', md: '48' }}>
+            <Field.Label>Pseudo de connexion</Field.Label>
+            <Input value={login} maxLength={30} autoComplete="off" onChange={(e) => setLogin(e.target.value)} />
+          </Field.Root>
+          <Field.Root w={{ base: 'full', md: '56' }}>
+            <Field.Label>Mot de passe</Field.Label>
+            <Input type="text" value={password} maxLength={128} autoComplete="new-password" onChange={(e) => setPassword(e.target.value)}
+              disabled={!login.trim()} placeholder="12 caractères minimum" />
+          </Field.Root>
+          <Button colorPalette="brand" loading={busy}
+            disabled={busy || !name.trim() || (!!login.trim() && password.length < 12)} onClick={create}>Créer</Button>
         </HStack>
         {error && <Text color="danger" role="alert" mt="2">{error}</Text>}
       </Section>
@@ -68,7 +87,6 @@ function Inner() {
             <Field.Label>Statut</Field.Label>
             <NativeSelect.Root><NativeSelect.Field value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
               <option value="">Tous</option>
-              <option value="PENDING_APPROVAL">En attente de validation</option>
               <option value="DRAFT">Brouillon</option>
               <option value="ACTIVE">Actif</option>
               <option value="ARCHIVED">Archivé</option>

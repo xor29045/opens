@@ -25,11 +25,6 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/pro/dashboard/apercu', label: 'Aperçu' },
     { href: '/pro/dashboard/compte', label: 'Sécurité' },
   ],
-  CLIENT: [
-    { href: '/client/espace/decouvrir', label: 'Découvrir' },
-    { href: '/client/espace', label: 'Favoris' },
-    { href: '/client/espace/compte', label: 'Mon compte' },
-  ],
   ADMIN: [
     { href: '/admin', label: 'Tableau de bord' },
     { href: '/admin/etablissements', label: 'Établissements' },

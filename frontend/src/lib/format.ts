@@ -14,7 +14,6 @@ export const reasonLabels: Record<string, string> = {
   ESTABLISHMENT_SUBSCRIPTION_INACTIVE: 'Abonnement de l’établissement inactif',
   PENDING_MANAGER_APPROVAL: 'En attente de validation par le gérant',
   PROFILE_NOT_ACTIVE: 'Profil non activé',
-  PROFILE_NOT_ATTESTED: 'Âge non attesté par la maison',
   PROFILE_HIDDEN: 'Profil masqué par la plateforme',
   NO_PRIMARY_PHOTO: 'Aucune photo principale',
   PROFESSIONAL_ACCOUNT_INACTIVE: 'Compte professionnel suspendu',

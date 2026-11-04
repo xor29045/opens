@@ -190,8 +190,8 @@ func devSeed() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("demo data loaded in %s: %d houses, %d attested profiles, %d pending registrations, %d clients, %d favorites\n",
-		time.Since(start).Round(time.Second), r.Establishments, r.Profiles, r.Pending, r.Clients, r.Favorites)
-	fmt.Printf("every demo account uses the password %q (managers: rose_gerant, velours_gerant, lune_gerant, jade_gerant, opale_gerant, nacre_gerant; clients: client_alex …)\n", devseed.Password)
+	fmt.Printf("demo data loaded in %s: %d houses, %d profiles in service, %d drafts without login\n",
+		time.Since(start).Round(time.Second), r.Establishments, r.Profiles, r.Drafts)
+	fmt.Printf("every demo account uses the password %q (managers: rose_gerant, velours_gerant, lune_gerant, jade_gerant, opale_gerant, nacre_gerant; professionals: see the profile list of each house)\n", devseed.Password)
 	return nil
 }

@@ -659,6 +659,10 @@ img {
   margin: 0;
   line-height: 1.15;
 }
+.os-deck__age {
+  font-weight: 400;
+  opacity: 0.85;
+}
 .os-deck__meta {
   color: var(--os-muted);
   font-size: 0.88rem;

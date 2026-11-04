@@ -28,7 +28,6 @@ const (
 	ReasonNoEntitlement       = "ESTABLISHMENT_SUBSCRIPTION_INACTIVE"
 	ReasonPendingApproval     = "PENDING_MANAGER_APPROVAL"
 	ReasonNotActive           = "PROFILE_NOT_ACTIVE"
-	ReasonNotAttested         = "PROFILE_NOT_ATTESTED"
 	ReasonHidden              = "PROFILE_HIDDEN"
 	ReasonNoPrimaryPhoto      = "NO_PRIMARY_PHOTO"
 	ReasonAccountInactive     = "PROFESSIONAL_ACCOUNT_INACTIVE"
@@ -82,9 +81,6 @@ func (s *PublicationService) ProfileReasons(ctx context.Context, st *Establishme
 	case models.ProfileActive:
 	default:
 		reasons = append(reasons, ReasonNotActive)
-	}
-	if p.AttestedAt == nil {
-		reasons = append(reasons, ReasonNotAttested)
 	}
 	if p.IsHidden {
 		reasons = append(reasons, ReasonHidden)

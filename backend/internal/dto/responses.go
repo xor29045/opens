@@ -234,14 +234,6 @@ func NewRate(r models.ProfileRate) Rate {
 	return Rate{ID: r.ID, Label: r.Label, DurationMinutes: r.DurationMinutes, AmountCents: r.AmountCents, Currency: r.Currency, Position: r.Position}
 }
 
-type Attestation struct {
-	Attested            bool       `json:"attested"`
-	AttestedAt          *time.Time `json:"attested_at"`
-	BirthDate           *string    `json:"birth_date,omitempty"`
-	Age                 *int       `json:"age"`
-	EmploymentReference *string    `json:"employment_reference,omitempty"`
-}
-
 type LinkedAccount struct {
 	ID       uuid.UUID `json:"id"`
 	Username string    `json:"username"`
@@ -267,6 +259,7 @@ type Profile struct {
 	DisplayName     string           `json:"display_name"`
 	Headline        string           `json:"headline"`
 	Description     string           `json:"description"`
+	Age             *int16           `json:"age"`
 	HeightCm        *int16           `json:"height_cm"`
 	WeightKg        *int16           `json:"weight_kg"`
 	HairColor       *string          `json:"hair_color"`
@@ -277,7 +270,6 @@ type Profile struct {
 	PriceFromCents  *int64           `json:"price_from_cents"`
 	IsHidden        bool             `json:"is_hidden"`
 	HiddenReason    *string          `json:"hidden_reason"`
-	Attestation     Attestation      `json:"attestation"`
 	Photos          []Photo          `json:"photos"`
 	Contacts        []Contact        `json:"contacts"`
 	Rates           []Rate           `json:"rates"`
@@ -300,7 +292,7 @@ func langs(a models.StringArray) []string {
 func NewProfile(d *services.ProfileDetail, manager bool, now time.Time) Profile {
 	p := d.Profile
 	out := Profile{ID: p.ID, Slug: p.Slug, Status: p.Status, DisplayName: p.DisplayName, Headline: p.Headline, Description: p.Description,
-		HeightCm: p.HeightCm, WeightKg: p.WeightKg, HairColor: p.HairColor, EyeColor: p.EyeColor, BodyType: p.BodyType,
+		Age: p.Age, HeightCm: p.HeightCm, WeightKg: p.WeightKg, HairColor: p.HairColor, EyeColor: p.EyeColor, BodyType: p.BodyType,
 		Languages: langs(p.Languages), ExtraAttributes: p.ExtraAttributes, PriceFromCents: p.PriceFromCents, IsHidden: p.IsHidden,
 		HiddenReason: p.HiddenReason, Photos: MapSlice(d.Photos, NewPhoto), Contacts: MapSlice(d.Contacts, NewProfileContact),
 		Rates: MapSlice(d.Rates, NewRate), Categories: MapSlice(d.Categories, NewCategory),
@@ -308,19 +300,7 @@ func NewProfile(d *services.ProfileDetail, manager bool, now time.Time) Profile 
 		LastEdit:      LastEdit{At: p.UpdatedAt},
 		Publication:   Publication{Published: p.IsPublished, PublishedAt: p.PublishedAt, Reasons: d.Reasons},
 		CreatedAt:     p.CreatedAt}
-	out.Attestation = Attestation{Attested: p.AttestedAt != nil, AttestedAt: p.AttestedAt}
-	if p.BirthDateAttested != nil {
-		age := services.AgeAt(*p.BirthDateAttested, now)
-		out.Attestation.Age = &age
-		if manager {
-			bd := p.BirthDateAttested.Format("2006-01-02")
-			out.Attestation.BirthDate = &bd
-		}
-	}
 	if manager {
-		if d.EmploymentReference != "" {
-			out.Attestation.EmploymentReference = &d.EmploymentReference
-		}
 		if d.LinkedUser != nil {
 			out.LinkedAccount = &LinkedAccount{ID: d.LinkedUser.ID, Username: d.LinkedUser.Username, Status: d.LinkedUser.Status}
 		}
@@ -336,7 +316,6 @@ type ProfileSummary struct {
 	Slug          string         `json:"slug"`
 	DisplayName   string         `json:"display_name"`
 	Status        string         `json:"status"`
-	Attested      bool           `json:"attested"`
 	IsHidden      bool           `json:"is_hidden"`
 	PhotoURL      *string        `json:"photo_url,omitempty"`
 	LinkedAccount *LinkedAccount `json:"linked_account"`
@@ -347,7 +326,7 @@ type ProfileSummary struct {
 
 func NewProfileSummary(it services.ProfileListItem) ProfileSummary {
 	p := it.Profile
-	out := ProfileSummary{ID: p.ID, Slug: p.Slug, DisplayName: p.DisplayName, Status: p.Status, Attested: p.AttestedAt != nil,
+	out := ProfileSummary{ID: p.ID, Slug: p.Slug, DisplayName: p.DisplayName, Status: p.Status,
 		IsHidden: p.IsHidden, LastEdit: LastEdit{At: p.UpdatedAt}, CreatedAt: p.CreatedAt,
 		Publication: Publication{Published: p.IsPublished, PublishedAt: p.PublishedAt, Reasons: it.Reasons}}
 	if out.Publication.Reasons == nil {
@@ -372,7 +351,6 @@ type AdminProfile struct {
 	Slug            string     `json:"slug"`
 	DisplayName     string     `json:"display_name"`
 	Status          string     `json:"status"`
-	Attested        bool       `json:"attested"`
 	IsHidden        bool       `json:"is_hidden"`
 	HiddenReason    *string    `json:"hidden_reason"`
 	IsPublished     bool       `json:"is_published"`
@@ -383,7 +361,7 @@ type AdminProfile struct {
 
 func NewAdminProfile(p models.Profile) AdminProfile {
 	return AdminProfile{ID: p.ID, EstablishmentID: p.EstablishmentID, UserID: p.UserID, Slug: p.Slug, DisplayName: p.DisplayName,
-		Status: p.Status, Attested: p.AttestedAt != nil, IsHidden: p.IsHidden, HiddenReason: p.HiddenReason, IsPublished: p.IsPublished,
+		Status: p.Status, IsHidden: p.IsHidden, HiddenReason: p.HiddenReason, IsPublished: p.IsPublished,
 		PublishedAt: p.PublishedAt, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt}
 }
 

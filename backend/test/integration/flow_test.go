@@ -5,16 +5,14 @@ import (
 	"testing"
 )
 
-// End-to-end: establishment → verification → subscription (signed IPN) →
-// professional registration → attestation → publication.
+// End-to-end: establishment → manager creates the professional (ADR-022) →
+// subscription (signed IPN) → publication.
 func TestPublicationFlow(t *testing.T) {
 	e := newEnv(t)
 	m, slug := e.readyManager()
-	p := e.register("professional", map[string]any{"establishment_slug": slug, "display_name": "Lola"})
-	id := e.get("/api/v1/professional/me", p.Token).expect(http.StatusOK).JSON()["id"].(string)
+	p, id := e.hire(m, "Lola")
 	e.upload("/api/v1/professional/me/photos", p.Token, testJPEG()).expect(http.StatusCreated)
 	e.put("/api/v1/professional/me/rates", p.Token, map[string]any{"rates": []any{map[string]any{"label": "1 heure", "duration_minutes": 60, "amount_cents": 15000}}}).expect(http.StatusOK)
-	e.put("/api/v1/manager/profiles/"+id+"/attestation", m.Token, map[string]any{"birth_date": "1995-03-14", "attested": true}).expect(http.StatusOK)
 
 	// Without a subscription the house cannot put the professional in service.
 	r := e.post("/api/v1/manager/profiles/"+id+"/activate", m.Token, nil).expect(http.StatusUnprocessableEntity)
@@ -25,11 +23,11 @@ func TestPublicationFlow(t *testing.T) {
 	if st["status"] == "ACTIVE" || st["publication"].(map[string]any)["published"].(bool) {
 		t.Fatal("profile in service without subscription")
 	}
-	// Paying the subscription puts the attested profile in service at once.
+	// Paying the subscription puts the profile in service at once.
 	e.subscribeAndPay(m)
 	st = e.get("/api/v1/manager/profiles/"+id, m.Token).expect(http.StatusOK).JSON()
 	if st["status"] != "ACTIVE" {
-		t.Fatalf("attested profile should be in service after payment, status=%v", st["status"])
+		t.Fatalf("profile should be in service after payment, status=%v", st["status"])
 	}
 	if !st["publication"].(map[string]any)["published"].(bool) {
 		t.Fatalf("expected publication, reasons=%v", st["publication"])
@@ -39,7 +37,7 @@ func TestPublicationFlow(t *testing.T) {
 		t.Fatalf("catalog total %v", list["total"])
 	}
 	card := list["items"].([]any)[0].(map[string]any)
-	if card["age"] == nil || card["photo_url"] == nil {
+	if card["photo_url"] == nil {
 		t.Fatalf("card incomplete: %v", card)
 	}
 	profSlug := card["slug"].(string)
@@ -53,13 +51,12 @@ func TestPublicationFlow(t *testing.T) {
 	}
 	e.browse("/api/v1/establishments/" + slug).expect(http.StatusOK)
 	// Filters
-	if e.browse("/api/v1/profiles?city=ixelles&age_min=25&price_max=200").expect(200).JSON()["total"].(float64) != 1 {
+	if e.browse("/api/v1/profiles?city=ixelles&price_max=200").expect(200).JSON()["total"].(float64) != 1 {
 		t.Fatal("filters should match")
 	}
 	if e.browse("/api/v1/profiles?city=anvers").expect(200).JSON()["total"].(float64) != 0 {
 		t.Fatal("city filter")
 	}
-	e.browse("/api/v1/profiles?age_min=12").expect(http.StatusUnprocessableEntity)
 	e.browse("/api/v1/profiles?sort=price%3BDROP").expect(http.StatusUnprocessableEntity)
 
 	// Invoice issued
@@ -74,24 +71,20 @@ func TestPublicationFlow(t *testing.T) {
 	}
 }
 
-// ADR-020: with a paid subscription there is no extra validation step, but a
-// professional's registration still waits for the manager's age attestation.
+// ADR-021/022: no validation step once subscribed. A profile created by a
+// paid house is in service at once and published as soon as it has a photo.
 func TestNoWaitOnceSubscribed(t *testing.T) {
 	e := newEnv(t)
-	m, slug := e.readyManager()
+	m, _ := e.readyManager()
 	e.subscribeAndPay(m)
-	p := e.register("professional", map[string]any{"establishment_slug": slug, "display_name": "Mia"})
-	id := e.get("/api/v1/professional/me", p.Token).expect(http.StatusOK).JSON()["id"].(string)
-	e.upload("/api/v1/professional/me/photos", p.Token, testJPEG()).expect(http.StatusCreated)
-
-	// Never published before the attestation, even with a paid subscription.
+	p, _ := e.hire(m, "Mia")
 	st := e.get("/api/v1/professional/me/publication-status", p.Token).expect(http.StatusOK).JSON()
-	if st["published"].(bool) || st["status"] != "PENDING_APPROVAL" {
-		t.Fatalf("registration must wait for the age attestation: %v", st)
+	if st["status"] != "ACTIVE" {
+		t.Fatalf("profile of a paid house should be in service at once: %v", st)
 	}
-	// The attestation alone puts the profile in service and publishes it.
-	d := e.put("/api/v1/manager/profiles/"+id+"/attestation", m.Token, map[string]any{"birth_date": "1998-06-01", "attested": true}).expect(http.StatusOK).JSON()
-	if d["status"] != "ACTIVE" || !d["publication"].(map[string]any)["published"].(bool) {
-		t.Fatalf("attested profile should be in service immediately: %v %v", d["status"], d["publication"])
+	e.upload("/api/v1/professional/me/photos", p.Token, testJPEG()).expect(http.StatusCreated)
+	st = e.get("/api/v1/professional/me/publication-status", p.Token).expect(http.StatusOK).JSON()
+	if !st["published"].(bool) {
+		t.Fatalf("profile should be published: %v", st)
 	}
 }

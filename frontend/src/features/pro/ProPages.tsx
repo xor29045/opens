@@ -31,7 +31,7 @@ function StatusInner() {
               </>
             )}
             <Text fontSize="sm" color="fg.muted">
-              L’attestation de ton âge, l’activation et l’archivage relèvent du gérant de ta maison.
+              L’activation et l’archivage relèvent du gérant de ta maison.
             </Text>
           </Stack>
         </Section>
@@ -46,7 +46,7 @@ function PreviewInner() {
     <QueryBlock isPending={q.isPending} isError={q.isError} error={q.error} onRetry={() => q.refetch()}>
       {q.data && (
         <Stack gap="4">
-          <Text fontSize="sm" color="fg.muted">Aperçu tel que le public le verra. Les coordonnées « clients inscrits » ne s’affichent qu’aux clients connectés.</Text>
+          <Text fontSize="sm" color="fg.muted">Aperçu tel que le public le verra. Les coordonnées masquées ne s’affichent jamais.</Text>
           <ProfileInner profile={q.data} />
         </Stack>
       )}

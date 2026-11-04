@@ -17,7 +17,7 @@ func (e *env) refresh(cookie string) *resp {
 // Scenario 3: refresh token rotation, reuse detection and revocations.
 func TestRefreshScenarios(t *testing.T) {
 	e := newEnv(t)
-	c := e.register("client", nil)
+	c := e.register("manager", nil)
 
 	// CSRF protections.
 	e.send(req{method: http.MethodPost, path: "/api/v1/auth/refresh", cookie: c.Cookie}).expect(http.StatusForbidden)
@@ -109,8 +109,8 @@ func TestRevocationByAdmin(t *testing.T) {
 // Scenario 4: recovery codes.
 func TestRecoveryCodes(t *testing.T) {
 	e := newEnv(t)
-	c := e.register("client", nil)
-	other := e.register("client", nil)
+	c := e.register("manager", nil)
+	other := e.register("manager", nil)
 	if len(c.Codes) != 10 {
 		t.Fatal("10 codes expected")
 	}
@@ -154,8 +154,8 @@ func TestRecoveryCodes(t *testing.T) {
 // Scenario 10: login rate limit and progressive lockout.
 func TestLoginRateLimitAndLockout(t *testing.T) {
 	e := newEnv(t, withRateLimit())
-	c := e.register("client", nil)
-	other := e.register("client", nil)
+	c := e.register("manager", nil)
+	other := e.register("manager", nil)
 	for i := 0; i < 5; i++ {
 		e.login(c.Username, "wrong password value").expect(401)
 	}
@@ -210,7 +210,7 @@ func TestBootstrapAdmin(t *testing.T) {
 		t.Fatal("bootstrap must be idempotent")
 	}
 	// A non-admin username cannot be promoted.
-	c := e.register("client", nil)
+	c := e.register("manager", nil)
 	e.cfg.AdminBootstrapUsername = c.Username
 	if err := e.svc.Bootstrap.EnsureBootstrapAdmins(ctx); err == nil {
 		t.Fatal("existing non-admin promoted")

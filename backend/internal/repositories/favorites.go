@@ -2,109 +2,73 @@ package repositories
 
 import (
 	"context"
-	"time"
+	"strings"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm/clause"
+	"gorm.io/gorm"
 
 	"opensex/backend/internal/models"
 )
 
+// FavoriteRepo serves the anonymous "Découvrir" deck. Likes and passes are
+// kept in the visitor's browser (ADR-023): the server only receives the ids
+// to leave out or to describe.
 type FavoriteRepo struct{ base }
-
-// Add is idempotent.
-func (r *FavoriteRepo) Add(ctx context.Context, clientID, profileID uuid.UUID, at time.Time) error {
-	return r.db(ctx).Clauses(clause.OnConflict{DoNothing: true}).
-		Create(&models.Favorite{ClientUserID: clientID, ProfileID: profileID, CreatedAt: at}).Error
-}
-
-func (r *FavoriteRepo) Remove(ctx context.Context, clientID, profileID uuid.UUID) (bool, error) {
-	res := r.db(ctx).Where("client_user_id = ? AND profile_id = ?", clientID, profileID).Delete(&models.Favorite{})
-	return res.RowsAffected > 0, res.Error
-}
-
-type FavoriteRow struct {
-	ProfileID         uuid.UUID
-	CreatedAt         time.Time
-	Slug              string
-	DisplayName       string
-	Headline          string
-	IsPublished       bool
-	PriceFromCents    *int64
-	BirthDateAttested *time.Time
-	EstablishmentName string
-	CityName          *string
-}
-
-func (r *FavoriteRepo) List(ctx context.Context, clientID uuid.UUID, p Page) ([]FavoriteRow, int64, error) {
-	var total int64
-	if err := r.db(ctx).Model(&models.Favorite{}).Where("client_user_id = ?", clientID).Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-	var out []FavoriteRow
-	err := r.db(ctx).Raw(`SELECT f.profile_id, f.created_at, p.slug, p.display_name, p.headline,
-			(p.is_published AND p.deleted_at IS NULL) AS is_published, p.price_from_cents, p.birth_date_attested,
-			e.display_name AS establishment_name, c.name AS city_name
-		FROM favorites f
-		JOIN professional_profiles p ON p.id = f.profile_id
-		JOIN establishments e ON e.id = p.establishment_id
-		LEFT JOIN regions c ON c.id = e.city_id
-		WHERE f.client_user_id = ?
-		ORDER BY f.created_at DESC OFFSET ? LIMIT ?`, clientID, p.Offset(), p.PageSize).Scan(&out).Error
-	return out, total, err
-}
-
-// ---- "Découvrir" deck: dislikes and candidates
-
-func (r *FavoriteRepo) AddDislike(ctx context.Context, clientID, profileID uuid.UUID, at time.Time) error {
-	return r.db(ctx).Clauses(clause.OnConflict{DoNothing: true}).
-		Create(&models.ClientDislike{ClientUserID: clientID, ProfileID: profileID, CreatedAt: at}).Error
-}
-
-func (r *FavoriteRepo) RemoveDislike(ctx context.Context, clientID, profileID uuid.UUID) (bool, error) {
-	res := r.db(ctx).Where("client_user_id = ? AND profile_id = ?", clientID, profileID).Delete(&models.ClientDislike{})
-	return res.RowsAffected > 0, res.Error
-}
-
-func (r *FavoriteRepo) ClearDislikes(ctx context.Context, clientID uuid.UUID) (int64, error) {
-	res := r.db(ctx).Where("client_user_id = ?", clientID).Delete(&models.ClientDislike{})
-	return res.RowsAffected, res.Error
-}
 
 type DiscoverRow struct {
 	ID                uuid.UUID
 	Slug              string
 	DisplayName       string
 	Headline          string
-	BirthDateAttested *time.Time
 	PriceFromCents    *int64
+	Age               *int16
 	Languages         models.StringArray `gorm:"type:text[]"`
 	EstablishmentSlug string
 	EstablishmentName string
 	CityName          *string
 }
 
-// discoverWhere selects published profiles the client has neither liked
-// (favorite) nor passed on (dislike).
-const discoverWhere = `p.is_published AND p.deleted_at IS NULL
-	AND NOT EXISTS (SELECT 1 FROM favorites f WHERE f.client_user_id = @client AND f.profile_id = p.id)
-	AND NOT EXISTS (SELECT 1 FROM client_dislikes d WHERE d.client_user_id = @client AND d.profile_id = p.id)`
+func (r *FavoriteRepo) published(ctx context.Context) *gorm.DB {
+	return r.db(ctx).Table("professional_profiles p").
+		Joins("JOIN establishments e ON e.id = p.establishment_id").
+		Joins("LEFT JOIN regions c ON c.id = e.city_id").
+		Joins("LEFT JOIN regions rg ON rg.id = e.region_id").
+		Where("p.is_published AND p.deleted_at IS NULL")
+}
 
-// Discover returns up to limit candidates in random order and the number of
-// candidates left in total.
-func (r *FavoriteRepo) Discover(ctx context.Context, clientID uuid.UUID, limit int) ([]DiscoverRow, int64, error) {
-	args := map[string]any{"client": clientID, "limit": limit}
+const discoverColumns = `p.id, p.slug, p.display_name, p.headline, p.price_from_cents, p.languages, p.age,
+	e.slug AS establishment_slug, e.display_name AS establishment_name, c.name AS city_name`
+
+// Discover returns up to limit published profiles matching f and not in
+// exclude, in random order, and the number of such profiles in total.
+func (r *FavoriteRepo) Discover(ctx context.Context, f CatalogFilter, exclude []uuid.UUID, limit int) ([]DiscoverRow, int64, error) {
+	q := applyFilters(r.published(ctx), f)
+	if len(exclude) > 0 {
+		q = q.Where("NOT (p.id = ANY(CAST(? AS uuid[])))", uuidArray(exclude))
+	}
 	var total int64
-	if err := r.db(ctx).Raw(`SELECT count(*) FROM professional_profiles p WHERE `+discoverWhere, args).Scan(&total).Error; err != nil {
+	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var out []DiscoverRow
-	err := r.db(ctx).Raw(`SELECT p.id, p.slug, p.display_name, p.headline, p.birth_date_attested, p.price_from_cents, p.languages,
-			e.slug AS establishment_slug, e.display_name AS establishment_name, c.name AS city_name
-		FROM professional_profiles p
-		JOIN establishments e ON e.id = p.establishment_id
-		LEFT JOIN regions c ON c.id = e.city_id
-		WHERE `+discoverWhere+`
-		ORDER BY random() LIMIT @limit`, args).Scan(&out).Error
+	err := q.Select(discoverColumns).Order("random()").Limit(limit).Scan(&out).Error
 	return out, total, err
+}
+
+// Published returns the published profiles among ids (favorites page).
+func (r *FavoriteRepo) Published(ctx context.Context, ids []uuid.UUID) ([]DiscoverRow, error) {
+	var out []DiscoverRow
+	err := r.published(ctx).Select(discoverColumns).Where("p.id = ANY(CAST(? AS uuid[]))", uuidArray(ids)).
+		Order("p.display_name").Scan(&out).Error
+	return out, err
+}
+
+// uuidArray renders ids as a Postgres array literal: GORM would otherwise
+// expand a slice into a parenthesised list.
+func uuidArray(ids []uuid.UUID) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = id.String()
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }

@@ -25,11 +25,10 @@ function Inner() {
 }
 
 function OverviewBody({ o }: { o: Overview }) {
-  const pending = o.profiles.filter((p) => p.status === 'PENDING_APPROVAL');
+  const withoutLogin = o.profiles.filter((p) => !p.linked_account && p.status !== 'ARCHIVED');
   const columns: Column<ProfileSummary>[] = [
     { key: 'name', header: 'Professionnel·le', cell: (p) => <a href={`/gerant/dashboard/profils/${p.id}`}>{p.display_name}</a> },
     { key: 'status', header: 'Statut', cell: (p) => <StatusBadge value={p.status} /> },
-    { key: 'attested', header: 'Attesté', cell: (p) => (p.attested ? 'Oui' : 'Non') },
     { key: 'pub', header: 'Publication', cell: (p) => (p.publication.published ? <Badge colorPalette="green">Publié</Badge> : (
       <Text fontSize="sm" color="fg.muted">{p.publication.reasons.map((r) => reasonLabels[r] ?? r).join(' · ') || '—'}</Text>
     )) },
@@ -41,7 +40,7 @@ function OverviewBody({ o }: { o: Overview }) {
         <Alert.Root status="info"><Alert.Content>
           <Alert.Title>Aucun abonnement actif</Alert.Title>
           <Alert.Description>
-            Tu peux préparer ta fiche et attester tes professionnel·les. Dès le paiement de l’abonnement, les profils attestés
+            Tu peux préparer ta fiche et créer tes professionnel·les. Dès le paiement de l’abonnement, leurs profils
             sont mis en service automatiquement. <a href="/gerant/dashboard/abonnement">Souscrire</a>
           </Alert.Description>
         </Alert.Content></Alert.Root>
@@ -69,15 +68,18 @@ function OverviewBody({ o }: { o: Overview }) {
             <Button asChild size="sm" variant="outline"><a href="/gerant/dashboard/etablissement">Modifier la fiche</a></Button>
           </HStack>
         </Section>
-        <Section title={`Rattachements en attente (${o.pending_count})`}>
-          {pending.length === 0 ? (
-            <Text color="fg.muted">Aucune inscription en attente.</Text>
+        <Section title="Accès des professionnel·les" action={<Button asChild size="xs" colorPalette="brand"><a href="/gerant/dashboard/profils">Créer une professionnelle</a></Button>}>
+          <Text fontSize="sm" color="fg.muted" mb="3">
+            Tu crées chaque profil avec un pseudo et un mot de passe ; la professionnelle se connecte sur /pro/login.
+          </Text>
+          {withoutLogin.length === 0 ? (
+            <Text color="fg.muted">Tous les profils ont leurs identifiants.</Text>
           ) : (
             <Stack gap="2">
-              {pending.map((p) => (
+              {withoutLogin.map((p) => (
                 <HStack key={p.id} justify="space-between">
-                  <Text>{p.display_name}</Text>
-                  <Button asChild size="xs" colorPalette="brand"><a href={`/gerant/dashboard/profils/${p.id}`}>Examiner</a></Button>
+                  <Text>{p.display_name} <Text as="span" fontSize="xs" color="fg.muted">· sans identifiants</Text></Text>
+                  <Button asChild size="xs" variant="outline"><a href={`/gerant/dashboard/profils/${p.id}`}>Créer ses accès</a></Button>
                 </HStack>
               ))}
             </Stack>

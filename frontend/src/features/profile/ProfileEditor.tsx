@@ -12,13 +12,14 @@ import { zodResolver } from '../../lib/forms';
 import { reasonLabels } from '../../lib/format';
 import { profileBase, profileLabels, contactTypes, visibilities, type Profile, type Category, type Contact } from './profileApi';
 import PhotoManager from './PhotoManager';
-import AttestationForm from './AttestationForm';
+import { bodyTypes, eyeColors, genders, hairColors, skinTones } from '../../lib/attributes';
 
 const text = (max: number) => z.string().trim().max(max, 'too_long');
 const profileSchema = z.object({
   display_name: z.string().trim().min(1, 'required').max(60, 'too_long'),
   headline: text(120),
   description: text(5000),
+  age: z.string().refine((v) => v === '' || (Number.isInteger(Number(v)) && Number(v) >= 18 && Number(v) <= 99), 'out_of_range'),
   height_cm: z.string().refine((v) => v === '' || (Number(v) >= 120 && Number(v) <= 230), 'out_of_range'),
   weight_kg: z.string().refine((v) => v === '' || (Number(v) >= 35 && Number(v) <= 250), 'out_of_range'),
   hair_color: z.string(),
@@ -26,6 +27,7 @@ const profileSchema = z.object({
   body_type: z.string(),
   languages: z.string(),
   gender: z.string(),
+  skin_tone: z.string(),
   tattoos: z.string(),
   piercings: z.string(),
   smoker: z.string(),
@@ -46,16 +48,16 @@ function toForm(p: Profile): FormValues {
   const attrs = p.extra_attributes as Record<string, string>;
   return {
     display_name: p.display_name, headline: p.headline, description: p.description,
-    height_cm: p.height_cm ? String(p.height_cm) : '', weight_kg: p.weight_kg ? String(p.weight_kg) : '',
+    age: p.age ? String(p.age) : '', height_cm: p.height_cm ? String(p.height_cm) : '', weight_kg: p.weight_kg ? String(p.weight_kg) : '',
     hair_color: p.hair_color ?? '', eye_color: p.eye_color ?? '', body_type: p.body_type ?? '',
     languages: p.languages.join(', '),
-    gender: attrs.gender ?? '', tattoos: attrs.tattoos ?? '', piercings: attrs.piercings ?? '', smoker: attrs.smoker ?? '',
+    gender: attrs.gender ?? '', skin_tone: attrs.skin_tone ?? '', tattoos: attrs.tattoos ?? '', piercings: attrs.piercings ?? '', smoker: attrs.smoker ?? '',
   };
 }
 
 function extraFrom(v: FormValues): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const k of ['gender', 'tattoos', 'piercings', 'smoker'] as const) if (v[k]) out[k] = v[k];
+  for (const k of ['gender', 'skin_tone', 'tattoos', 'piercings', 'smoker'] as const) if (v[k]) out[k] = v[k];
   return out;
 }
 
@@ -79,7 +81,7 @@ function ProfileForm({ mode, id, profile }: { mode: 'manager' | 'professional'; 
         method: 'PUT',
         body: {
           display_name: v.display_name, headline: v.headline, description: v.description,
-          height_cm: v.height_cm ? Number(v.height_cm) : null, weight_kg: v.weight_kg ? Number(v.weight_kg) : null,
+          age: v.age ? Number(v.age) : null, height_cm: v.height_cm ? Number(v.height_cm) : null, weight_kg: v.weight_kg ? Number(v.weight_kg) : null,
           hair_color: v.hair_color || null, eye_color: v.eye_color || null, body_type: v.body_type || null,
           languages: v.languages.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
           extra_attributes: extraFrom(v),
@@ -100,6 +102,13 @@ function ProfileForm({ mode, id, profile }: { mode: 'manager' | 'professional'; 
 
   return (
     <Stack gap="6">
+      {mode === 'professional' && (
+        <Box p="4" borderRadius="xl" borderWidth="1px" borderColor="brand.emphasized" bg="brand.subtle">
+          <Text fontSize="xs" textTransform="uppercase" letterSpacing="wider" color="fg.muted">Ta maison</Text>
+          <Heading size="lg">{profile.establishment.display_name}</Heading>
+          <Text fontSize="sm" color="fg.muted">Ton profil est publié sous cette maison. L’activation et tes identifiants relèvent de ton gérant.</Text>
+        </Box>
+      )}
       <Section title="Publication" action={<StatusBadge value={profile.status} />}>
         <Stack gap="2">
           {profile.publication.published ? (
@@ -130,6 +139,12 @@ function ProfileForm({ mode, id, profile }: { mode: 'manager' | 'professional'; 
               <Input {...register('headline')} maxLength={120} />
               <FieldError msg={errors.headline && messageFor(errors.headline.message ?? '')} />
             </Field.Root>
+            <Field.Root invalid={!!errors.age}>
+              <Field.Label>Âge</Field.Label>
+              <Input type="number" inputMode="numeric" min={18} max={99} {...register('age')} />
+              <FieldError msg={errors.age && messageFor(errors.age.message ?? '')} />
+              <Field.HelperText>18 ans minimum. Sert aux filtres de « Découvrir ».</Field.HelperText>
+            </Field.Root>
             <Field.Root invalid={!!errors.height_cm}>
               <Field.Label>Taille (cm)</Field.Label>
               <Input type="number" inputMode="numeric" {...register('height_cm')} />
@@ -144,21 +159,21 @@ function ProfileForm({ mode, id, profile }: { mode: 'manager' | 'professional'; 
               <Field.Label>Cheveux</Field.Label>
               <NativeSelect.Root><NativeSelect.Field {...register('hair_color')}>
                 <option value="">—</option>
-                {['BLONDE', 'BROWN', 'BLACK', 'RED', 'GREY', 'OTHER'].map((v) => <option key={v} value={v}>{v}</option>)}
+                {hairColors.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </NativeSelect.Field></NativeSelect.Root>
             </Field.Root>
             <Field.Root>
               <Field.Label>Yeux</Field.Label>
               <NativeSelect.Root><NativeSelect.Field {...register('eye_color')}>
                 <option value="">—</option>
-                {['BLUE', 'GREEN', 'BROWN', 'HAZEL', 'GREY', 'BLACK', 'OTHER'].map((v) => <option key={v} value={v}>{v}</option>)}
+                {eyeColors.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </NativeSelect.Field></NativeSelect.Root>
             </Field.Root>
             <Field.Root>
               <Field.Label>Morphologie</Field.Label>
               <NativeSelect.Root><NativeSelect.Field {...register('body_type')}>
                 <option value="">—</option>
-                {['SLIM', 'ATHLETIC', 'AVERAGE', 'CURVY', 'PLUS_SIZE', 'MUSCULAR'].map((v) => <option key={v} value={v}>{v}</option>)}
+                {bodyTypes.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </NativeSelect.Field></NativeSelect.Root>
             </Field.Root>
             <Field.Root>
@@ -169,9 +184,14 @@ function ProfileForm({ mode, id, profile }: { mode: 'manager' | 'professional'; 
               <Field.Label>Genre</Field.Label>
               <NativeSelect.Root><NativeSelect.Field {...register('gender')}>
                 <option value="">Non précisé</option>
-                <option value="FEMALE">Femme</option><option value="MALE">Homme</option>
-                <option value="TRANS_WOMAN">Femme trans</option><option value="TRANS_MAN">Homme trans</option>
-                <option value="NON_BINARY">Non binaire</option>
+                {genders.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </NativeSelect.Field></NativeSelect.Root>
+            </Field.Root>
+            <Field.Root>
+              <Field.Label>Couleur de peau</Field.Label>
+              <NativeSelect.Root><NativeSelect.Field {...register('skin_tone')}>
+                <option value="">Non précisée</option>
+                {skinTones.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </NativeSelect.Field></NativeSelect.Root>
             </Field.Root>
             <Field.Root>
@@ -210,7 +230,6 @@ function ProfileForm({ mode, id, profile }: { mode: 'manager' | 'professional'; 
       <RatesSection base={base} rates={profile.rates} onChange={refresh} />
       <CategoriesSection base={base} selected={profile.categories} onChange={refresh} />
       <ContactsSection base={base} contacts={profile.contacts} onChange={refresh} />
-      {mode === 'manager' && id && <AttestationForm profile={profile} base={base} onChange={refresh} />}
       {mode === 'manager' && id && <ManagerLifecycle profile={profile} base={base} onChange={refresh} />}
     </Stack>
   );
@@ -323,10 +342,10 @@ function ContactsSection({ base, contacts, onChange }: { base: string; contacts:
     }
   };
   return (
-    <Section title="Coordonnées" action={<Button size="xs" variant="outline" onClick={() => setRows([...rows, { type: 'PHONE', value: '', visibility: 'CLIENTS' }])}>Ajouter</Button>}>
+    <Section title="Coordonnées" action={<Button size="xs" variant="outline" onClick={() => setRows([...rows, { type: 'PHONE', value: '', visibility: 'PUBLIC' }])}>Ajouter</Button>}>
       <Stack gap="3">
         <Text fontSize="sm" color="fg.muted">
-          Public : visible de tous · Clients inscrits : visible des comptes client · Masqué : jamais affiché.
+          Public : visible de tous les visiteurs · Masqué : jamais affiché.
         </Text>
         {rows.map((r, i) => (
           <HStack key={i} align="flex-end" wrap="wrap">
@@ -370,7 +389,7 @@ function ManagerLifecycle({ profile, base, onChange }: { profile: Profile; base:
   };
   // Without a subscription the house cannot put profiles in service.
   const noSubscription = profile.publication.reasons.includes('ESTABLISHMENT_SUBSCRIPTION_INACTIVE');
-  const canActivate = profile.attestation.attested && !noSubscription && (profile.status === 'DRAFT' || profile.status === 'ARCHIVED');
+  const canActivate = !noSubscription && (profile.status === 'DRAFT' || profile.status === 'ARCHIVED');
   return (
     <Section title="Cycle de vie">
       <Stack gap="3">
@@ -383,13 +402,8 @@ function ManagerLifecycle({ profile, base, onChange }: { profile: Profile; base:
         <HStack wrap="wrap" gap="2">
           <Button size="sm" colorPalette="brand" disabled={!canActivate} onClick={() => run('/activate', 'POST').catch(() => undefined)}>Mettre en service</Button>
           <ActionDialog trigger="Archiver" title="Archiver ce profil ?" danger
-            description="Le profil est dépublié, l’attestation est retirée et le compte lié est suspendu. Les sessions du/de la professionnel·le sont fermées."
+            description="Le profil est dépublié et le compte lié est suspendu. Les sessions du/de la professionnel·le sont fermées."
             confirmLabel="Archiver" onConfirm={() => run('/archive', 'POST')} />
-          {profile.status === 'PENDING_APPROVAL' && (
-            <ActionDialog trigger="Refuser le rattachement" title="Refuser ce rattachement ?" danger withReason
-              description="Le profil et le compte seront supprimés. La personne ne sera plus rattachée à la maison."
-              confirmLabel="Refuser" onConfirm={(reason) => run('/reject', 'POST', { reason })} />
-          )}
           {profile.linked_account && profile.linked_account.status === 'ACTIVE' && (
             <ActionDialog trigger="Suspendre le compte" title="Suspendre le compte lié ?" withReason danger
               description="La personne ne peut plus se connecter et son profil n’est plus publié." confirmLabel="Suspendre"
@@ -412,8 +426,53 @@ function ManagerLifecycle({ profile, base, onChange }: { profile: Profile; base:
             onConfirm={() => run('', 'DELETE')} />
         </HStack>
         {error && <Text color="danger" role="alert" style={{ wordBreak: 'break-all' }}>{error}</Text>}
+        {profile.linked_account
+          ? <Text fontSize="sm" color="fg.muted">Identifiant de connexion : <b>{profile.linked_account.username}</b> (sur /pro/login).</Text>
+          : <AccountCreator base={base} onChange={onChange} />}
       </Stack>
     </Section>
+  );
+}
+
+// ADR-022: the house creates the professional's login (pseudo + password).
+function AccountCreator({ base, onChange }: { base: string; onChange: () => void }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api(`${base}/account`, { method: 'POST', body: { username: username.trim(), password } });
+      onChange();
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Box borderTopWidth="1px" borderColor="border" pt="3">
+      <Text fontWeight="semibold" mb="1">Créer ses accès</Text>
+      <Text fontSize="sm" color="fg.muted" mb="3">
+        Ce profil n’a pas d’identifiants. Choisis un pseudo et un mot de passe à lui transmettre : elle se connectera sur /pro/login.
+      </Text>
+      <HStack align="flex-end" wrap="wrap">
+        <Field.Root w={{ base: 'full', md: '48' }}>
+          <Field.Label>Pseudo</Field.Label>
+          <Input value={username} maxLength={30} autoComplete="off" onChange={(e) => setUsername(e.target.value)} />
+        </Field.Root>
+        <Field.Root w={{ base: 'full', md: '56' }}>
+          <Field.Label>Mot de passe</Field.Label>
+          <Input value={password} maxLength={128} autoComplete="new-password" placeholder="12 caractères minimum" onChange={(e) => setPassword(e.target.value)} />
+        </Field.Root>
+        <Button size="sm" colorPalette="brand" loading={busy} disabled={busy || username.trim().length < 3 || password.length < 12} onClick={submit}>
+          Créer les accès
+        </Button>
+      </HStack>
+      {error && <Text color="danger" role="alert" mt="2">{error}</Text>}
+    </Box>
   );
 }
 

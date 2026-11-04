@@ -18,12 +18,12 @@ export function profileBase(mode: 'manager' | 'professional', id?: string): stri
 }
 
 export const contactTypes: ContactType[] = ['PHONE', 'WHATSAPP', 'TELEGRAM', 'INSTAGRAM', 'FACEBOOK', 'WEBSITE', 'OTHER'];
-export const visibilities: Visibility[] = ['PUBLIC', 'CLIENTS', 'HIDDEN'];
+export const visibilities: Visibility[] = ['PUBLIC', 'HIDDEN'];
 
 export const profileLabels = {
   contactType: {
     PHONE: 'Téléphone', WHATSAPP: 'WhatsApp', TELEGRAM: 'Telegram', INSTAGRAM: 'Instagram',
     FACEBOOK: 'Facebook', WEBSITE: 'Site', OTHER: 'Autre',
   } as Record<string, string>,
-  visibility: { PUBLIC: 'Public', CLIENTS: 'Clients inscrits', HIDDEN: 'Masqué' } as Record<string, string>,
+  visibility: { PUBLIC: 'Public', HIDDEN: 'Masqué' } as Record<string, string>,
 };

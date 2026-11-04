@@ -69,7 +69,7 @@ func testDB(t *testing.T) *database.DB {
 
 func resetDB(t *testing.T, db *database.DB) {
 	t.Helper()
-	err := db.Gorm.Exec(`TRUNCATE payment_provider_events, invoices, payments, subscriptions, favorites,
+	err := db.Gorm.Exec(`TRUNCATE payment_provider_events, invoices, payments, subscriptions,
 		professional_categories, profile_rates, profile_contacts, profile_photos, professional_profiles,
 		establishment_contacts, establishments, recovery_codes, refresh_tokens, user_roles, users CASCADE`).Error
 	if err != nil {
@@ -262,11 +262,10 @@ func uniq(prefix string) string {
 	return fmt.Sprintf("%s%d", prefix, seq)
 }
 
-// browse reads the catalogue as a freshly registered client (the catalogue
-// is reserved to signed-in users).
+// browse reads the catalogue as an anonymous visitor (ADR-023).
 func (e *env) browse(path string) *resp {
 	e.t.Helper()
-	return e.get(path, e.register("client", nil).Token)
+	return e.get(path, "")
 }
 
 func (e *env) register(kind string, extra map[string]any) account {
@@ -314,7 +313,7 @@ func (e *env) readyManager() (account, string) {
 	e.put("/api/v1/manager/establishment/contacts", m.Token, map[string]any{"contacts": []any{
 		map[string]any{"type": "PHONE", "value": "+32 470 00 00 01", "visibility": "HIDDEN", "is_verification_phone": true},
 		map[string]any{"type": "PHONE", "value": "+32 470 00 00 02", "visibility": "PUBLIC"},
-		map[string]any{"type": "WHATSAPP", "value": "+32 470 00 00 03", "visibility": "CLIENTS"},
+		map[string]any{"type": "WHATSAPP", "value": "+32 470 00 00 03", "visibility": "PUBLIC"},
 	}}).expect(http.StatusOK)
 	return m, est["slug"].(string)
 }
@@ -390,23 +389,37 @@ func (e *env) payIPN(paymentID, status, expected, received string) *resp {
 		headers: map[string]string{"x-nowpayments-sig": sig}})
 }
 
-// publishedProfile creates a fully publishable profile for the manager:
-// professional registration, attestation, photo, activation.
-func (e *env) publishedProfile(m account, estSlug string) (account, string) {
+// hire has the manager create a professional profile with its login
+// (ADR-022), then signs the professional in. It returns the account and the
+// profile id.
+func (e *env) hire(m account, displayName string) (account, string) {
 	e.t.Helper()
-	p := e.register("professional", map[string]any{"establishment_slug": estSlug, "display_name": "Lola"})
-	me := e.get("/api/v1/professional/me", p.Token).expect(http.StatusOK).JSON()
-	id := me["id"].(string)
+	name := uniq("pro")
+	d := e.post("/api/v1/manager/profiles", m.Token, map[string]any{"display_name": displayName, "username": name, "password": pwd}).
+		expect(http.StatusCreated).JSON()
+	r := e.login(name, pwd).expect(http.StatusOK)
+	acc := account{Username: name, Password: pwd, Token: r.JSON()["access_token"].(string), Cookie: refreshCookie(r)}
+	acc.ID = r.JSON()["user"].(map[string]any)["id"].(string)
+	return acc, d["id"].(string)
+}
+
+// publishedProfile creates a fully publishable profile for the manager:
+// manager-created professional, photo, rates, contacts, subscription.
+func (e *env) publishedProfile(m account, _ string) (account, string) {
+	e.t.Helper()
+	p, id := e.hire(m, "Lola")
 	e.upload("/api/v1/professional/me/photos", p.Token, testJPEG()).expect(http.StatusCreated)
 	e.put("/api/v1/professional/me/rates", p.Token, map[string]any{"rates": []any{map[string]any{"label": "1 heure", "duration_minutes": 60, "amount_cents": 15000}}}).expect(http.StatusOK)
 	e.put("/api/v1/professional/me/contacts", p.Token, map[string]any{"contacts": []any{
 		map[string]any{"type": "PHONE", "value": "+32470111111", "visibility": "PUBLIC"},
-		map[string]any{"type": "WHATSAPP", "value": "+32470222222", "visibility": "CLIENTS"},
+		map[string]any{"type": "WHATSAPP", "value": "+32470222222", "visibility": "PUBLIC"},
 		map[string]any{"type": "TELEGRAM", "value": "@lola_private", "visibility": "HIDDEN"},
 	}}).expect(http.StatusOK)
-	e.put("/api/v1/manager/profiles/"+id+"/attestation", m.Token, map[string]any{"birth_date": "1995-03-14", "attested": true}).expect(http.StatusOK)
-	// Attested + paid subscription → in service without a manual step (ADR-020).
+	// Paying the subscription puts the drafts in service.
 	e.subscribeAndPay(m)
+	if e.get("/api/v1/manager/profiles/"+id, m.Token).expect(http.StatusOK).JSON()["status"] == "DRAFT" {
+		e.post("/api/v1/manager/profiles/"+id+"/activate", m.Token, nil).expect(http.StatusOK)
+	}
 	return p, id
 }
 

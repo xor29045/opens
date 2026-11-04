@@ -39,19 +39,6 @@ func (h *Handler) authResult(c *gin.Context, status int, res *services.AuthResul
 	c.JSON(status, dto.NewAuthResponse(res))
 }
 
-func (h *Handler) RegisterClient(c *gin.Context) {
-	var req dto.RegisterClientRequest
-	if !h.bind(c, &req) {
-		return
-	}
-	res, err := h.Svc.Auth.RegisterClient(c.Request.Context(), services.RegisterInput{Username: req.Username, Password: req.Password, AcceptTerms: req.AcceptTerms})
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	h.authResult(c, http.StatusCreated, res)
-}
-
 func (h *Handler) RegisterManager(c *gin.Context) {
 	var req dto.RegisterManagerRequest
 	if !h.bind(c, &req) {
@@ -64,33 +51,6 @@ func (h *Handler) RegisterManager(c *gin.Context) {
 		return
 	}
 	h.authResult(c, http.StatusCreated, res)
-}
-
-func (h *Handler) RegisterProfessional(c *gin.Context) {
-	var req dto.RegisterProfessionalRequest
-	if !h.bind(c, &req) {
-		return
-	}
-	res, err := h.Svc.Auth.RegisterProfessional(c.Request.Context(), services.RegisterInput{Username: req.Username, Password: req.Password,
-		AcceptTerms: req.AcceptTerms, EstablishmentSlug: req.EstablishmentSlug, DisplayName: req.DisplayName})
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	h.authResult(c, http.StatusCreated, res)
-}
-
-func (h *Handler) RegisterEstablishments(c *gin.Context) {
-	rows, err := h.Svc.Catalog.SelectableEstablishments(c.Request.Context())
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	out := make([]dto.SelectableEstablishment, len(rows))
-	for i, r := range rows {
-		out[i] = dto.SelectableEstablishment{Slug: r.Slug, DisplayName: r.DisplayName, City: r.CityName, Region: r.RegionName}
-	}
-	ok(c, gin.H{"items": out})
 }
 
 func (h *Handler) login(c *gin.Context, admin bool) {

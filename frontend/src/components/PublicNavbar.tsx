@@ -33,8 +33,11 @@ function NavbarInner() {
               Open<span>•</span>sex
             </a>
             <HStack as="nav" aria-label="Navigation principale" gap="6" display={{ base: 'none', md: 'flex' }}>
-              <CLink href="/client/espace/decouvrir" fontSize="sm" color="fg.muted" _hover={{ color: 'fg', textDecoration: 'none' }}>
+              <CLink href="/decouvrir" fontSize="sm" color="fg.muted" _hover={{ color: 'fg', textDecoration: 'none' }}>
                 Découvrir
+              </CLink>
+              <CLink href="/favoris" fontSize="sm" color="fg.muted" _hover={{ color: 'fg', textDecoration: 'none' }}>
+                Favoris
               </CLink>
               <CLink href="/gerant/register" fontSize="sm" color="fg.muted" _hover={{ color: 'fg', textDecoration: 'none' }}>
                 Vous êtes une maison ?
@@ -47,14 +50,15 @@ function NavbarInner() {
                 <a href={homeFor[session.user.role]}>Mon espace</a>
               </Button>
             ) : (
+              // No client accounts (ADR-023): only houses and professionals sign in.
               <>
-                <Button asChild size="sm" variant="ghost" color="fg.muted">
-                  <a href="/client/login">
-                    <Text as="span">Connexion</Text>
+                <Button asChild size="sm" variant="ghost" color="fg.muted" display={{ base: 'none', sm: 'inline-flex' }}>
+                  <a href="/pro/login">
+                    <Text as="span">Espace pro</Text>
                   </a>
                 </Button>
                 <Button asChild size="sm" colorPalette="brand">
-                  <a href="/client/register">Créer un compte</a>
+                  <a href="/decouvrir">Découvrir</a>
                 </Button>
               </>
             )}

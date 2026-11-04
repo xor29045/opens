@@ -124,7 +124,6 @@ function EstablishmentDetail({ id, onBack }: { id: string; onBack: () => void })
                 { key: 'name', header: 'Nom', cell: (p) => p.display_name },
                 { key: 'status', header: 'Statut', cell: (p) => <StatusBadge value={p.status} /> },
                 { key: 'pub', header: 'Publié', cell: (p) => (p.is_published ? 'Oui' : 'Non') },
-                { key: 'att', header: 'Attesté', cell: (p) => (p.attested ? 'Oui' : 'Non') },
               ]} />
             </Section>
           </Stack>
@@ -178,7 +177,6 @@ function ProfilesInner() {
     { key: 'name', header: 'Nom', cell: (p) => p.display_name },
     { key: 'status', header: 'Statut', cell: (p) => <StatusBadge value={p.status} /> },
     { key: 'pub', header: 'Publié', cell: (p) => (p.is_published ? <a href={`/profils/${p.slug}`} target="_blank" rel="noopener noreferrer">Voir</a> : 'Non') },
-    { key: 'att', header: 'Attesté', cell: (p) => (p.attested ? 'Oui' : 'Non') },
     { key: 'act', header: '', cell: (p) => (p.is_hidden ? (
       <ActionDialog trigger="Réafficher" title="Réafficher ce profil ?" confirmLabel="Réafficher" description={`Masqué pour : ${p.hidden_reason ?? '—'}`} onConfirm={() => post(p.id, '/unhide', {})} />
     ) : (
@@ -253,7 +251,7 @@ function UsersInner() {
         </Stack>
       )}
       <HStack gap="4" mb="4" wrap="wrap" align="flex-end">
-        <Select label="Rôle" value={role} onChange={(v) => { setRole(v); setPage(1); }} options={[['', 'Tous'], ['MANAGER', 'Gérants'], ['PROFESSIONAL', 'Professionnel·les'], ['CLIENT', 'Clients'], ['ADMIN', 'Admins']]} />
+        <Select label="Rôle" value={role} onChange={(v) => { setRole(v); setPage(1); }} options={[['', 'Tous'], ['MANAGER', 'Gérants'], ['PROFESSIONAL', 'Professionnel·les'], ['ADMIN', 'Admins']]} />
         <Select label="Statut" value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={[['', 'Actifs et suspendus'], ['ACTIVE', 'Actifs'], ['SUSPENDED', 'Suspendus'], ['DELETED', 'Supprimés']]} />
         <Field.Root w="64"><Field.Label>Pseudo</Field.Label><Input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} /></Field.Root>
       </HStack>

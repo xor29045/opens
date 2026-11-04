@@ -2,8 +2,8 @@
 import Public from '../../layouts/Public.astro';
 import ProfileView from '../../features/catalog/ProfileView.tsx';
 
-// Reserved to signed-in users (middleware guard); the profile is loaded in
-// the browser with the session, so the page is never indexed or cached.
+// Public (ADR-023); the profile is loaded in the browser so a staff session
+// is still sent. The page is not indexed.
 const { slug } = Astro.params;
 Astro.response.headers.set('Referrer-Policy', 'no-referrer');
 Astro.response.headers.set('X-Robots-Tag', 'noindex');

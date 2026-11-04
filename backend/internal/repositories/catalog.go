@@ -13,21 +13,24 @@ import (
 type CatalogRepo struct{ base }
 
 type CatalogFilter struct {
-	Region         string
-	City           string
-	Establishment  string
-	Categories     []string
-	AgeMin, AgeMax int
-	PriceMinCents  int64
-	PriceMaxCents  int64
-	HeightMin      int
-	HeightMax      int
-	HairColors     []string
-	EyeColors      []string
-	BodyTypes      []string
-	Languages      []string
-	Sort           string
-	Today          time.Time
+	Region        string
+	City          string
+	Establishment string
+	Categories    []string
+	PriceMinCents int64
+	PriceMaxCents int64
+	HeightMin     int
+	HeightMax     int
+	AgeMin        int
+	AgeMax        int
+	SkinTones     []string
+	Genders       []string
+	HairColors    []string
+	EyeColors     []string
+	BodyTypes     []string
+	Languages     []string
+	Sort          string
+	Today         time.Time
 }
 
 type CatalogRow struct {
@@ -35,7 +38,6 @@ type CatalogRow struct {
 	Slug              string
 	DisplayName       string
 	Headline          string
-	BirthDateAttested *time.Time
 	PriceFromCents    *int64
 	PublishedAt       *time.Time
 	HeightCm          *int16
@@ -67,13 +69,13 @@ func (r *CatalogRepo) published(ctx context.Context) *gorm.DB {
 		Where("p.is_published AND p.deleted_at IS NULL")
 }
 
-const catalogSelect = `p.id, p.slug, p.display_name, p.headline, p.birth_date_attested, p.price_from_cents, p.published_at,
+const catalogSelect = `p.id, p.slug, p.display_name, p.headline, p.price_from_cents, p.published_at,
 	p.height_cm, p.hair_color, p.eye_color, p.body_type, p.languages,
 	e.id AS establishment_id, e.slug AS establishment_slug, e.display_name AS establishment_name,
 	c.name AS city_name, c.slug AS city_slug, rg.name AS region_name, rg.slug AS region_slug`
 
-func (r *CatalogRepo) Search(ctx context.Context, f CatalogFilter, p Page) ([]CatalogRow, int64, error) {
-	q := r.published(ctx)
+// applyFilters narrows published profiles (catalogue and "Découvrir" deck).
+func applyFilters(q *gorm.DB, f CatalogFilter) *gorm.DB {
 	if f.Region != "" {
 		q = q.Where("rg.slug = ?", f.Region)
 	}
@@ -86,12 +88,6 @@ func (r *CatalogRepo) Search(ctx context.Context, f CatalogFilter, p Page) ([]Ca
 	if len(f.Categories) > 0 {
 		q = q.Where(`EXISTS (SELECT 1 FROM professional_categories pc JOIN categories cat ON cat.id = pc.category_id
 			WHERE pc.profile_id = p.id AND cat.slug IN ?)`, f.Categories)
-	}
-	if f.AgeMin > 0 {
-		q = q.Where("p.birth_date_attested <= ?", f.Today.AddDate(-f.AgeMin, 0, 0))
-	}
-	if f.AgeMax > 0 {
-		q = q.Where("p.birth_date_attested > ?", f.Today.AddDate(-(f.AgeMax+1), 0, 0))
 	}
 	if f.PriceMinCents > 0 {
 		q = q.Where("p.price_from_cents >= ?", f.PriceMinCents)
@@ -117,6 +113,23 @@ func (r *CatalogRepo) Search(ctx context.Context, f CatalogFilter, p Page) ([]Ca
 	if len(f.Languages) > 0 {
 		q = q.Where("p.languages && ?::text[]", models.StringArray(f.Languages))
 	}
+	if f.AgeMin > 0 {
+		q = q.Where("p.age >= ?", f.AgeMin)
+	}
+	if f.AgeMax > 0 {
+		q = q.Where("p.age <= ?", f.AgeMax)
+	}
+	if len(f.SkinTones) > 0 {
+		q = q.Where("p.extra_attributes->>'skin_tone' IN ?", f.SkinTones)
+	}
+	if len(f.Genders) > 0 {
+		q = q.Where("p.extra_attributes->>'gender' IN ?", f.Genders)
+	}
+	return q
+}
+
+func (r *CatalogRepo) Search(ctx context.Context, f CatalogFilter, p Page) ([]CatalogRow, int64, error) {
+	q := applyFilters(r.published(ctx), f)
 	var total int64
 	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, 0, err

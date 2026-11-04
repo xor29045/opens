@@ -24,45 +24,6 @@ func reasonRequired(reason string) (string, error) {
 	return r, nil
 }
 
-// Reject refuses a pending registration: the profile and the account are deleted.
-func (s *StaffService) Reject(ctx context.Context, actor *rbac.Actor, profileID uuid.UUID, reason string) error {
-	reason, err := reasonRequired(reason)
-	if err != nil {
-		return err
-	}
-	var userID *uuid.UUID
-	err = s.tx(ctx, func(ctx context.Context) error {
-		p, err := s.Profiles.resolve(ctx, actor, profileID, true)
-		if err != nil {
-			return err
-		}
-		if p.Status != models.ProfilePendingApproval {
-			return apperr.Conflict("invalid_state", "only pending registrations can be rejected")
-		}
-		photos, err := s.Repos.Profiles.Photos(ctx, p.ID)
-		if err != nil {
-			return apperr.Internal(err)
-		}
-		userID = p.UserID
-		if err := s.Repos.Profiles.HardDelete(ctx, p.ID); err != nil {
-			return apperr.Internal(err)
-		}
-		if p.UserID != nil {
-			if err := s.Repos.Users.HardDelete(ctx, *p.UserID); err != nil {
-				return apperr.Internal(err)
-			}
-		}
-		for _, ph := range photos {
-			_ = s.Storage.Delete(context.WithoutCancel(ctx), ph.StorageKey)
-		}
-		return nil
-	})
-	if err == nil && userID != nil {
-		_ = s.Denylist.DenyUser(ctx, *userID)
-	}
-	return err
-}
-
 func (s *StaffService) linkedAccount(ctx context.Context, actor *rbac.Actor, profileID uuid.UUID) (*models.Profile, *models.User, error) {
 	p, err := s.Profiles.resolve(ctx, actor, profileID, false)
 	if err != nil {
@@ -150,7 +111,6 @@ type ManagerOverview struct {
 	EstablishmentState []string
 	Subscription       *models.Subscription
 	Entitled           bool
-	PendingCount       int64
 	Profiles           []ProfileListItem
 }
 
@@ -174,9 +134,6 @@ func (s *StaffService) Overview(ctx context.Context, actor *rbac.Actor) (*Manage
 	out.Checklist = []ChecklistItem{
 		{Key: "establishment_complete", Done: IsComplete(e)},
 		{Key: "subscription_active", Done: st.Entitled},
-	}
-	if out.PendingCount, err = s.Repos.Profiles.CountPending(ctx, e.ID); err != nil {
-		return nil, apperr.Internal(err)
 	}
 	all, err := s.Repos.Profiles.AllOfEstablishment(ctx, e.ID)
 	if err != nil {

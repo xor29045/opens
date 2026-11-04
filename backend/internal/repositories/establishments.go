@@ -79,28 +79,6 @@ func (r *EstablishmentRepo) ReplaceContacts(ctx context.Context, id uuid.UUID, c
 	return r.db(ctx).Create(&contacts).Error
 }
 
-// Selectable lists the houses a professional can choose at registration:
-// named, not hidden, manager active.
-func (r *EstablishmentRepo) Selectable(ctx context.Context) ([]EstablishmentSummary, error) {
-	var out []EstablishmentSummary
-	err := r.db(ctx).Raw(`SELECT e.id, e.slug, e.display_name, c.name AS city_name, rg.name AS region_name
-		FROM establishments e
-		JOIN users m ON m.id = e.manager_user_id AND m.status = 'ACTIVE' AND m.deleted_at IS NULL
-		LEFT JOIN regions c ON c.id = e.city_id
-		LEFT JOIN regions rg ON rg.id = e.region_id
-		WHERE e.deleted_at IS NULL AND e.display_name <> '' AND NOT e.is_hidden
-		ORDER BY e.display_name`).Scan(&out).Error
-	return out, err
-}
-
-type EstablishmentSummary struct {
-	ID          uuid.UUID
-	Slug        string
-	DisplayName string
-	CityName    *string
-	RegionName  *string
-}
-
 type EstablishmentFilter struct {
 	SubscriptionStatus string
 	Query              string

@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Alert, Button, chakra, Checkbox, Field, Input, NativeSelect, Stack, Text, Heading } from '@chakra-ui/react';
+import { useState, type FormEvent } from 'react';
+import { Alert, Button, chakra, Checkbox, Field, Input, Stack, Text, Heading } from '@chakra-ui/react';
 import Providers from '../../components/Providers';
 import { Section } from '../../components/ui';
 import RecoveryCodesDialog from './RecoveryCodesDialog';
@@ -8,7 +8,8 @@ import { ApiError, describeError } from '../../lib/api/problem';
 import { sessionStore, homeFor, type Role, type SessionUser } from '../../lib/auth/session';
 
 export type AuthMode = 'login' | 'register';
-type Kind = 'client' | 'manager' | 'professional' | 'admin';
+// No client accounts (ADR-023).
+type Kind = 'manager' | 'professional' | 'admin';
 
 interface Props {
   kind: Kind;
@@ -23,21 +24,14 @@ interface AuthResponse {
   recovery_codes?: string[];
 }
 
-interface EstablishmentOption {
-  slug: string;
-  display_name: string;
-  city: string | null;
-  region: string | null;
-}
-
 const titles: Record<Kind, Record<AuthMode, string>> = {
-  client: { login: 'Connexion client', register: 'Créer un compte client' },
   manager: { login: 'Connexion gérant', register: 'Inscrire mon établissement' },
-  professional: { login: 'Connexion professionnel·le', register: 'Inscription professionnel·le' },
+  // Professionals do not self-register: their house creates their login (ADR-022).
+  professional: { login: 'Connexion professionnel·le', register: '' },
   admin: { login: 'Administration', register: '' },
 };
 
-const roleOf: Record<Kind, Role> = { client: 'CLIENT', manager: 'MANAGER', professional: 'PROFESSIONAL', admin: 'ADMIN' };
+const roleOf: Record<Kind, Role> = { manager: 'MANAGER', professional: 'PROFESSIONAL', admin: 'ADMIN' };
 
 function safeNext(next: string | null | undefined): string | null {
   return next && next.startsWith('/') && !next.startsWith('//') ? next : null;
@@ -46,8 +40,6 @@ function safeNext(next: string | null | undefined): string | null {
 function AuthInner({ kind, mode, next }: Props) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [establishment, setEstablishment] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [acceptCGV, setAcceptCGV] = useState(false);
   const [acceptDPA, setAcceptDPA] = useState(false);
@@ -55,16 +47,6 @@ function AuthInner({ kind, mode, next }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [codes, setCodes] = useState<string[] | null>(null);
-  const [houses, setHouses] = useState<EstablishmentOption[] | null>(null);
-  const [houseError, setHouseError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (kind === 'professional' && mode === 'register') {
-      api<{ items: EstablishmentOption[] }>('/auth/register/establishments', { auth: false })
-        .then((r) => setHouses(r.items))
-        .catch((e) => setHouseError(describeError(e)));
-    }
-  }, [kind, mode]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -77,18 +59,9 @@ function AuthInner({ kind, mode, next }: Props) {
         res = await api<AuthResponse>(kind === 'admin' ? '/auth/admin/login' : '/auth/login', {
           method: 'POST', body: { username, password }, auth: false,
         });
-      } else if (kind === 'client') {
-        res = await api<AuthResponse>('/auth/register/client', {
-          method: 'POST', auth: false, body: { username, password, accept_terms: acceptTerms },
-        });
-      } else if (kind === 'manager') {
+      } else {
         res = await api<AuthResponse>('/auth/register/manager', {
           method: 'POST', auth: false, body: { username, password, accept_terms: acceptTerms, accept_cgv: acceptCGV, accept_dpa: acceptDPA },
-        });
-      } else {
-        res = await api<AuthResponse>('/auth/register/professional', {
-          method: 'POST', auth: false,
-          body: { username, password, accept_terms: acceptTerms, establishment_slug: establishment, display_name: displayName },
         });
       }
       sessionStore.set({ token: res.access_token, user: res.user, expiresAt: res.expires_at });
@@ -124,43 +97,22 @@ function AuthInner({ kind, mode, next }: Props) {
   }
 
   const title = titles[kind][mode];
-  const isRegister = mode === 'register';
-  const invalidHouse = houses !== null && houses.length === 0;
+  const isRegister = mode === 'register' && kind !== 'professional';
+  const isPro = kind === 'professional';
 
   return (
     <chakra.form maxW="md" mx="auto" my={{ base: 2, md: 8 }} p={{ base: 6, md: 8 }} bg="bg.subtle" borderWidth="1px" borderColor="border" borderRadius="xl" onSubmit={submit} aria-labelledby="auth-title" noValidate>
     <Stack gap="6">
       <Heading id="auth-title" size="xl">{title}</Heading>
       {kind === 'admin' && <Alert.Root status="warning"><Alert.Content>Accès réservé aux administrateurs de la plateforme.</Alert.Content></Alert.Root>}
-      {isRegister && kind === 'professional' && (
-        <Field.Root invalid={!!fieldErrors.establishment_slug}>
-          <Field.Label>Maison</Field.Label>
-          <NativeSelect.Root disabled={!houses || invalidHouse}>
-            <NativeSelect.Field value={establishment} onChange={(e) => setEstablishment(e.target.value)}>
-              <option value="">{houses === null ? 'Chargement…' : 'Choisis ta maison'}</option>
-              {(houses ?? []).map((h) => (
-                <option key={h.slug} value={h.slug}>{h.display_name}{h.city ? ` — ${h.city}` : ''}</option>
-              ))}
-            </NativeSelect.Field>
-          </NativeSelect.Root>
-          {houseError && <Field.ErrorText>{houseError}</Field.ErrorText>}
-          {invalidHouse && <Field.HelperText>Aucune maison n’accepte d’inscription pour le moment.</Field.HelperText>}
-          {fieldErrors.establishment_slug && <Field.ErrorText>{fieldErrors.establishment_slug}</Field.ErrorText>}
-          <Field.HelperText>Ton rattachement est définitif. Ton profil n’est publié qu’après validation de la maison.</Field.HelperText>
-        </Field.Root>
+      {isPro && (
+        <Text color="fg.muted">Connecte-toi avec le pseudo et le mot de passe que ta maison t’a donnés : tu arrives directement dans l’espace de ta maison.</Text>
       )}
       <Field.Root invalid={!!fieldErrors.username}>
         <Field.Label>Pseudo</Field.Label>
         <Input name="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
         {fieldErrors.username ? <Field.ErrorText>{fieldErrors.username}</Field.ErrorText> : isRegister && <Field.HelperText>3 à 30 caractères : lettres, chiffres, _ . -</Field.HelperText>}
       </Field.Root>
-      {isRegister && kind === 'professional' && (
-        <Field.Root invalid={!!fieldErrors.display_name}>
-          <Field.Label>Nom affiché</Field.Label>
-          <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={60} />
-          {fieldErrors.display_name && <Field.ErrorText>{fieldErrors.display_name}</Field.ErrorText>}
-        </Field.Root>
-      )}
       <Field.Root invalid={!!fieldErrors.password}>
         <Field.Label>Mot de passe</Field.Label>
         <Input type="password" name="password" autoComplete={isRegister ? 'new-password' : 'current-password'} value={password} onChange={(e) => setPassword(e.target.value)} required />
@@ -190,27 +142,27 @@ function AuthInner({ kind, mode, next }: Props) {
         </Stack>
       )}
       {error && <Text color="danger" role="alert">{error}</Text>}
-      <Button type="submit" colorPalette="brand" loading={busy} disabled={busy || (isRegister && kind === 'professional' && !establishment)}>
+      <Button type="submit" colorPalette="brand" loading={busy} disabled={busy}>
         {isRegister ? 'Créer le compte' : 'Se connecter'}
       </Button>
       {!isRegister && kind !== 'admin' && (
         <Stack gap="1" fontSize="sm">
-          <a href="/compte/recuperation">Mot de passe oublié ? (code de récupération)</a>
-          {kind === 'client' && <a href="/client/register">Pas encore de compte ? Créer un compte client</a>}
+          {isPro
+            ? <Text color="fg.muted">Mot de passe oublié ? Demande à ta maison de le réinitialiser.</Text>
+            : <a href="/compte/recuperation">Mot de passe oublié ? (code de récupération)</a>}
           {kind === 'manager' && <a href="/gerant/register">Inscrire mon établissement</a>}
-          {kind === 'professional' && <a href="/pro/register">Créer mon compte professionnel·le</a>}
         </Stack>
       )}
       {isRegister && (
         <Text fontSize="sm" color="fg.muted">
-          Déjà un compte ? <a href={`/${kind === 'client' ? 'client' : kind === 'manager' ? 'gerant' : 'pro'}/login`}>Connexion</a>
+          Déjà un compte ? <a href="/gerant/login">Connexion</a>
         </Text>
       )}
-      <Section title="Bon à savoir">
+      {!isPro && <Section title="Bon à savoir">
         <Text fontSize="sm" color="fg.muted">
           Cette plateforme ne collecte aucune adresse e-mail. À l’inscription, tu reçois des codes de récupération à conserver.
         </Text>
-      </Section>
+      </Section>}
     </Stack>
     </chakra.form>
   );

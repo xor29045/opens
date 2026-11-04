@@ -13,7 +13,7 @@ import (
 //  2. establishment not hidden, not deleted;
 //  3. entitlement: ACTIVE/TRIALING/PAST_DUE and now < period end + grace,
 //     except for a cancellation that took effect at period end;
-//  4. profile ACTIVE and attested; 5. not hidden; 6. primary photo;
+//  4. profile ACTIVE; 5. not hidden; 6. primary photo;
 //  7. max_active_profiles quota (oldest publications keep their slot).
 const publicationSQL = `
 WITH entitled AS (
@@ -26,12 +26,12 @@ WITH entitled AS (
          OR (NOT s.cancel_at_period_end AND @now < COALESCE(s.grace_until, s.current_period_end + make_interval(days => pl.grace_days)))
       )
 ), elig AS (
-    SELECT p.id, p.establishment_id, p.published_at, p.attested_at, en.max_active_profiles,
+    SELECT p.id, p.establishment_id, p.published_at, p.created_at, en.max_active_profiles,
         (    m.status = 'ACTIVE' AND m.deleted_at IS NULL
          AND (p.user_id IS NULL OR EXISTS (SELECT 1 FROM users u WHERE u.id = p.user_id AND u.status = 'ACTIVE' AND u.deleted_at IS NULL))
          AND NOT e.is_hidden AND e.deleted_at IS NULL
          AND en.establishment_id IS NOT NULL
-         AND p.status = 'ACTIVE' AND p.attested_at IS NOT NULL AND p.birth_date_attested IS NOT NULL
+         AND p.status = 'ACTIVE'
          AND NOT p.is_hidden AND p.deleted_at IS NULL
          AND EXISTS (SELECT 1 FROM profile_photos ph WHERE ph.profile_id = p.id AND ph.is_primary)
         ) AS ok
@@ -42,7 +42,7 @@ WITH entitled AS (
     WHERE (@all OR p.establishment_id IN @scope)
 ), ranked AS (
     SELECT id, ok, max_active_profiles, published_at,
-        row_number() OVER (PARTITION BY establishment_id, ok ORDER BY published_at NULLS LAST, attested_at, id) AS rn
+        row_number() OVER (PARTITION BY establishment_id, ok ORDER BY published_at NULLS LAST, created_at, id) AS rn
     FROM elig
 ), final AS (
     SELECT id, published_at, (ok AND (max_active_profiles IS NULL OR rn <= max_active_profiles)) AS pub FROM ranked

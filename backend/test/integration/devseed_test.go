@@ -18,7 +18,7 @@ func TestDevSeed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Establishments != 6 || r.Clients != 8 || r.Profiles < 20 || r.Pending < 4 || r.Favorites == 0 {
+	if r.Establishments != 6 || r.Profiles < 20 || r.Drafts < 4 {
 		t.Fatalf("unexpected report %+v", r)
 	}
 	if _, err := devseed.Run(context.Background(), e.svc); !errors.Is(err, devseed.ErrAlreadySeeded) {
@@ -32,12 +32,17 @@ func TestDevSeed(t *testing.T) {
 	}
 	e.browse("/api/v1/profiles?city=anvers").expect(http.StatusOK)
 
-	// Manager dashboards: overview, pending, stats, billing.
+	// Manager dashboards: overview, stats, billing.
 	m := e.login("rose_gerant", devseed.Password).expect(http.StatusOK).JSON()["access_token"].(string)
 	ov := e.get("/api/v1/manager/publication-status", m).expect(http.StatusOK).JSON()
-	if ov["pending_count"].(float64) != 2 || !ov["entitled"].(bool) {
+	if !ov["entitled"].(bool) {
 		t.Fatalf("overview %v", ov)
 	}
+	// Seeded professionals sign in with the login created by their house.
+	var proName string
+	e.db.Gorm.Raw(`SELECT u.username FROM users u JOIN professional_profiles p ON p.user_id = u.id LIMIT 1`).Scan(&proName)
+	pro := e.login(proName, devseed.Password).expect(http.StatusOK).JSON()["access_token"].(string)
+	e.get("/api/v1/professional/me", pro).expect(http.StatusOK)
 	if st := e.get("/api/v1/manager/stats", m).expect(http.StatusOK).JSON(); st["views"].(float64) == 0 {
 		t.Fatal("stats should be filled")
 	}
@@ -53,13 +58,10 @@ func TestDevSeed(t *testing.T) {
 		t.Fatal("velours should have an open renewal invoice")
 	}
 
-	// Client space: favorites and deck.
-	c := e.login("client_alex", devseed.Password).expect(http.StatusOK).JSON()["access_token"].(string)
-	if fav := e.get("/api/v1/client/favorites", c).expect(http.StatusOK).JSON(); fav["total"].(float64) == 0 {
-		t.Fatal("client should have favorites")
+	// Anonymous deck.
+	if d := e.post("/api/v1/discover", "", map[string]any{}).expect(http.StatusOK).JSON(); len(d["items"].([]any)) == 0 {
+		t.Fatal("deck should be filled")
 	}
-	e.get("/api/v1/client/discover", c).expect(http.StatusOK)
-	e.login("client_ray", devseed.Password).expect(http.StatusUnauthorized) // suspended
 
 	// Admin dashboards.
 	kpi := e.get("/api/v1/admin/stats", adm.Token).expect(http.StatusOK).JSON()

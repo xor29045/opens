@@ -1,5 +1,5 @@
 // Package devseed fills a development database with realistic demo data so
-// that every dashboard (public catalogue, manager, professional, client,
+// that every dashboard (public catalogue, manager, professional,
 // admin) has something to show. Everything goes through the business
 // services: passwords are hashed, photos re-encoded and stored, payments are
 // confirmed by signed IPNs of the fake provider.
@@ -39,9 +39,7 @@ var ErrAlreadySeeded = errors.New("demo data already present (user " + marker + 
 type Report struct {
 	Establishments int
 	Profiles       int
-	Pending        int
-	Clients        int
-	Favorites      int
+	Drafts         int
 }
 
 type house struct {
@@ -108,9 +106,6 @@ func Run(ctx context.Context, s *services.Services) (*Report, error) {
 			return nil, fmt.Errorf("house %s: %w", h.name, err)
 		}
 		published = append(published, ids...)
-	}
-	if err := sd.clients(ctx, published); err != nil {
-		return nil, fmt.Errorf("clients: %w", err)
 	}
 	if err := sd.moderation(ctx, published); err != nil {
 		return nil, fmt.Errorf("moderation: %w", err)
@@ -187,7 +182,7 @@ func (sd *seeder) house(ctx context.Context, idx int, h house) ([]uuid.UUID, err
 	phone := func(n int) string { return fmt.Sprintf("+32 47%d %02d %02d %02d", idx, 10+n, 20+idx, 30+n) }
 	if _, err := s.Establishments.ReplaceContacts(mctx, mgr, []services.ContactInput{
 		{Type: "PHONE", Value: phone(1), Visibility: models.VisibilityPublic},
-		{Type: "WHATSAPP", Value: phone(2), Visibility: models.VisibilityClients},
+		{Type: "WHATSAPP", Value: phone(2), Visibility: models.VisibilityPublic},
 		{Type: "PHONE", Value: phone(3), Visibility: models.VisibilityHidden, IsVerificationPhone: true},
 		{Type: "WEBSITE", Value: fmt.Sprintf("https://www.%s.example", h.username), Visibility: models.VisibilityPublic},
 	}); err != nil {
@@ -203,20 +198,24 @@ func (sd *seeder) house(ctx context.Context, idx int, h house) ([]uuid.UUID, err
 	}
 	var published []uuid.UUID
 	for i := 0; i < h.profiles; i++ {
-		id, err := sd.professional(ctx, mgr, h, i, true)
+		id, err := sd.professional(ctx, mgr, h, i)
 		if err != nil {
 			return nil, fmt.Errorf("profile %d: %w", i, err)
 		}
-		// Attestation with a paid subscription puts the profile in service.
+		// A profile created by a paid house is in service at once (ADR-021).
 		if h.subscription != "none" {
 			published = append(published, id)
 		}
 	}
+	// Profiles in preparation: created by the house, no login yet.
 	for i := 0; i < h.pending; i++ {
-		if _, err := sd.professional(ctx, mgr, h, 100+i, false); err != nil {
-			return nil, fmt.Errorf("pending %d: %w", i, err)
+		name := names[sd.nameIdx%len(names)]
+		sd.nameIdx++
+		if _, err := s.Profiles.CreateByManager(mctx, mgr, services.ProfileInput{DisplayName: name,
+			Headline: "Profil en préparation", Languages: []string{"fr"}}, nil); err != nil {
+			return nil, fmt.Errorf("draft %d: %w", i, err)
 		}
-		sd.report.Pending++
+		sd.report.Drafts++
 	}
 	// Variety for the manager dashboard.
 	if h.username == "rose_gerant" && len(published) > 0 {
@@ -225,7 +224,7 @@ func (sd *seeder) house(ctx context.Context, idx int, h house) ([]uuid.UUID, err
 		}
 		published = published[:len(published)-1]
 		if _, err := s.Profiles.CreateByManager(mctx, mgr, services.ProfileInput{DisplayName: "Profil en préparation",
-			Headline: "Brouillon créé par la maison", Languages: []string{"fr"}}); err != nil {
+			Headline: "Brouillon créé par la maison", Languages: []string{"fr"}}, nil); err != nil {
 			return nil, fmt.Errorf("draft: %w", err)
 		}
 	}
@@ -247,25 +246,21 @@ func (sd *seeder) house(ctx context.Context, idx int, h house) ([]uuid.UUID, err
 	return published, nil
 }
 
-// professional registers an account attached to the house and fills the
-// profile as the professional. attest=false leaves a pending registration.
-func (sd *seeder) professional(ctx context.Context, mgr *rbac.Actor, h house, i int, attest bool) (uuid.UUID, error) {
+// professional is created by the manager with a login (ADR-022), then fills
+// its own profile as the professional.
+func (sd *seeder) professional(ctx context.Context, mgr *rbac.Actor, h house, i int) (uuid.UUID, error) {
 	s := sd.s
 	name := names[sd.nameIdx%len(names)]
 	sd.nameIdx++
 	username := fmt.Sprintf("%s_%s_%d", sluggish(name), h.username[:len(h.username)-len("_gerant")], i)
-	res, err := s.Auth.RegisterProfessional(ctx, services.RegisterInput{Username: username, Password: Password, AcceptTerms: true,
-		EstablishmentSlug: mustSlug(ctx, s, mgr.EstablishmentID), DisplayName: name})
+	d, err := s.Profiles.CreateByManager(as(ctx, mgr), mgr, services.ProfileInput{DisplayName: name},
+		&services.AccountInput{Username: username, Password: Password})
 	if err != nil {
 		return uuid.Nil, err
 	}
-	p, err := s.Repos.Profiles.ByUser(ctx, res.User.ID)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	pro := &rbac.Actor{UserID: res.User.ID, Role: models.RoleProfessional, EstablishmentID: p.EstablishmentID, ProfileID: p.ID}
+	p := d.Profile
+	pro := &rbac.Actor{UserID: *p.UserID, Role: models.RoleProfessional, EstablishmentID: p.EstablishmentID, ProfileID: p.ID}
 	pctx := as(ctx, pro)
-	_ = s.Auth.ConfirmRecoveryCodes(pctx, pro)
 	r := sd.rnd
 	hair := []string{"BLONDE", "BROWN", "BLACK", "RED"}[r.Intn(4)]
 	eyes := []string{"BLUE", "GREEN", "BROWN", "HAZEL"}[r.Intn(4)]
@@ -279,8 +274,9 @@ func (sd *seeder) professional(ctx context.Context, mgr *rbac.Actor, h house, i 
 	}
 	if _, err := s.Profiles.Update(pctx, pro, p.ID, services.ProfileInput{
 		DisplayName: name, Headline: headlines[r.Intn(len(headlines))], Description: descriptions[r.Intn(len(descriptions))],
-		HeightCm: ptr(155 + r.Intn(30)), WeightKg: ptr(48 + r.Intn(25)), HairColor: &hair, EyeColor: &eyes, BodyType: &body,
-		Languages: langs, ExtraAttributes: map[string]string{"gender": gender, "smoker": []string{"true", "false"}[r.Intn(2)]},
+		Age: ptr(21 + r.Intn(24)), HeightCm: ptr(155 + r.Intn(30)), WeightKg: ptr(48 + r.Intn(25)), HairColor: &hair, EyeColor: &eyes, BodyType: &body,
+		Languages: langs, ExtraAttributes: map[string]string{"gender": gender, "smoker": []string{"true", "false"}[r.Intn(2)],
+			"skin_tone": []string{"FAIR", "LIGHT", "MEDIUM", "OLIVE", "TAN", "BROWN", "DARK"}[r.Intn(7)]},
 	}); err != nil {
 		return uuid.Nil, err
 	}
@@ -293,7 +289,7 @@ func (sd *seeder) professional(ctx context.Context, mgr *rbac.Actor, h house, i 
 		return uuid.Nil, err
 	}
 	if _, err := s.Profiles.ReplaceContacts(pctx, pro, p.ID, []services.ContactInput{
-		{Type: "WHATSAPP", Value: fmt.Sprintf("+32 48%d %02d %02d %02d", r.Intn(10), r.Intn(90)+10, r.Intn(90)+10, r.Intn(90)+10), Visibility: models.VisibilityClients},
+		{Type: "WHATSAPP", Value: fmt.Sprintf("+32 48%d %02d %02d %02d", r.Intn(10), r.Intn(90)+10, r.Intn(90)+10, r.Intn(90)+10), Visibility: models.VisibilityPublic},
 		{Type: "INSTAGRAM", Value: "https://www.instagram.com/" + username, Visibility: models.VisibilityPublic},
 	}); err != nil {
 		return uuid.Nil, err
@@ -309,22 +305,8 @@ func (sd *seeder) professional(ctx context.Context, mgr *rbac.Actor, h house, i 
 			return uuid.Nil, fmt.Errorf("photo: %w", err)
 		}
 	}
-	if attest {
-		birth := time.Date(1986+r.Intn(18), time.Month(1+r.Intn(12)), 1+r.Intn(28), 0, 0, 0, 0, time.UTC)
-		if _, err := s.Profiles.Attest(as(ctx, mgr), mgr, p.ID, birth, "", true); err != nil {
-			return uuid.Nil, fmt.Errorf("attest: %w", err)
-		}
-		sd.report.Profiles++
-	}
+	sd.report.Profiles++
 	return p.ID, nil
-}
-
-func mustSlug(ctx context.Context, s *services.Services, establishmentID uuid.UUID) string {
-	e, err := s.Repos.Establishments.ByID(ctx, establishmentID)
-	if err != nil {
-		return ""
-	}
-	return e.Slug
 }
 
 func sluggish(name string) string {
@@ -409,38 +391,7 @@ func (sd *seeder) stats(ctx context.Context, profileID uuid.UUID) error {
 	return nil
 }
 
-// clients creates client accounts with favourites and passed profiles.
-func (sd *seeder) clients(ctx context.Context, published []uuid.UUID) error {
-	s := sd.s
-	for i, name := range []string{"client_alex", "client_sam", "client_noah", "client_lou", "client_max", "client_eli", "client_jo", "client_ray"} {
-		res, err := s.Auth.RegisterClient(ctx, services.RegisterInput{Username: name, Password: Password, AcceptTerms: true})
-		if err != nil {
-			return err
-		}
-		c := &rbac.Actor{UserID: res.User.ID, Role: models.RoleClient}
-		cctx := as(ctx, c)
-		_ = s.Auth.ConfirmRecoveryCodes(cctx, c)
-		sd.report.Clients++
-		order := sd.rnd.Perm(len(published))
-		likes := 2 + sd.rnd.Intn(5)
-		for k, idx := range order {
-			switch {
-			case k < likes:
-				if err := s.Clients.AddFavorite(cctx, c, published[idx]); err != nil {
-					return err
-				}
-				sd.report.Favorites++
-			case k < likes+2 && i%2 == 0:
-				if err := s.Clients.Dislike(cctx, c, published[idx]); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// moderation adds a few admin actions (hidden profile, suspended client).
+// moderation adds an admin action (hidden profile).
 func (sd *seeder) moderation(ctx context.Context, published []uuid.UUID) error {
 	s := sd.s
 	if len(published) > 3 {
@@ -448,11 +399,7 @@ func (sd *seeder) moderation(ctx context.Context, published []uuid.UUID) error {
 			return err
 		}
 	}
-	u, err := s.Repos.Users.ByUsername(ctx, "client_ray")
-	if err != nil {
-		return err
-	}
-	return s.Admin.Suspend(ctx, u.ID, "Comportement signalé par une maison")
+	return nil
 }
 
 // portrait draws an abstract silhouette (no real person) as a JPEG.

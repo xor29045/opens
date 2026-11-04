@@ -77,49 +77,6 @@ paths:
       responses:
         '200':
           description: OK
-  /api/v1/auth/register/client:
-    post:
-      summary: Register a CLIENT (role fixed by the endpoint, RM-01)
-      tags:
-      - auth
-      operationId: post_auth_register_client
-      description: Sets the `__Host-rt` refresh cookie. A `role` field is ignored and recorded as a security event.
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                username:
-                  type: string
-                  pattern: ^[a-zA-Z0-9_.-]{3,30}$
-                password:
-                  type: string
-                  minLength: 12
-                  maxLength: 128
-                accept_terms:
-                  type: boolean
-              required:
-              - username
-              - password
-              - accept_terms
-      responses:
-        '201':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '400':
-          $ref: '#/components/responses/400'
-        '409':
-          $ref: '#/components/responses/409'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
   /api/v1/auth/register/manager:
     post:
       summary: Register a MANAGER and its empty DRAFT establishment
@@ -166,77 +123,6 @@ paths:
           $ref: '#/components/responses/409'
         '422':
           $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/auth/register/professional:
-    post:
-      summary: Register a PROFESSIONAL attached to a house (profile PENDING_APPROVAL)
-      tags:
-      - auth
-      operationId: post_auth_register_professional
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                username:
-                  type: string
-                  pattern: ^[a-zA-Z0-9_.-]{3,30}$
-                password:
-                  type: string
-                  minLength: 12
-                  maxLength: 128
-                accept_terms:
-                  type: boolean
-                establishment_slug:
-                  type: string
-                display_name:
-                  type: string
-                  maxLength: 60
-              required:
-              - username
-              - password
-              - accept_terms
-              - establishment_slug
-      responses:
-        '201':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '400':
-          $ref: '#/components/responses/400'
-        '409':
-          $ref: '#/components/responses/409'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/auth/register/establishments:
-    get:
-      summary: Houses selectable at professional registration
-      tags:
-      - auth
-      operationId: get_auth_register_establishments
-      security: []
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/SelectableEstablishment'
-                required:
-                - items
         '429':
           $ref: '#/components/responses/429'
   /api/v1/auth/login:
@@ -590,8 +476,9 @@ paths:
       tags:
       - catalog
       operationId: get_profiles
-      description: Signed-in users only.
+      description: Public (ADR-023). A staff token, when sent, lets a house see its own restricted contacts.
       security:
+      - {}
       - bearerAuth: []
       parameters:
       - $ref: '#/components/parameters/page'
@@ -621,20 +508,6 @@ paths:
         style: form
         explode: true
         description: Category slugs (any)
-      - name: age_min
-        in: query
-        required: false
-        schema:
-          type: integer
-          minimum: 18
-          maximum: 99
-      - name: age_max
-        in: query
-        required: false
-        schema:
-          type: integer
-          minimum: 18
-          maximum: 99
       - name: price_min
         in: query
         required: false
@@ -647,6 +520,28 @@ paths:
         schema:
           type: integer
           description: EUR
+      - name: age_min
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: age_max
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: skin_tone
+        in: query
+        required: false
+        description: Comma-separated values of extra_attributes.skin_tone
+        schema:
+          type: string
+      - name: gender
+        in: query
+        required: false
+        description: Comma-separated values of extra_attributes.gender
+        schema:
+          type: string
       - name: height_min
         in: query
         required: false
@@ -721,8 +616,9 @@ paths:
       tags:
       - catalog
       operationId: get_profiles_slug
-      description: Signed-in users only.
+      description: Public (ADR-023). A staff token, when sent, lets a house see its own restricted contacts.
       security:
+      - {}
       - bearerAuth: []
       parameters:
       - name: slug
@@ -749,8 +645,9 @@ paths:
       tags:
       - catalog
       operationId: get_establishments_slug
-      description: Signed-in users only.
+      description: Public (ADR-023). A staff token, when sent, lets a house see its own restricted contacts.
       security:
+      - {}
       - bearerAuth: []
       parameters:
       - name: slug
@@ -769,6 +666,92 @@ paths:
           $ref: '#/components/responses/401'
         '404':
           $ref: '#/components/responses/404'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/discover:
+    post:
+      summary: Anonymous "Découvrir" deck (ADR-023)
+      description: Published profiles in random order, leaving out the ids the visitor already liked or passed (kept in the browser). POST because the exclusion list can be long.
+      tags:
+      - catalog
+      operationId: post_discover
+      security:
+      - {}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                exclude:
+                  type: array
+                  maxItems: 1000
+                  items:
+                    type: string
+                    format: uuid
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 30
+                filters:
+                  $ref: '#/components/schemas/DiscoverFilters'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscoverDeck'
+        '400':
+          $ref: '#/components/responses/400'
+        '422':
+          $ref: '#/components/responses/422'
+        '429':
+          $ref: '#/components/responses/429'
+  /api/v1/discover/cards:
+    post:
+      summary: Describe the liked profiles still published (favorites kept in the browser)
+      tags:
+      - catalog
+      operationId: post_discover_cards
+      security:
+      - {}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                ids:
+                  type: array
+                  maxItems: 200
+                  items:
+                    type: string
+                    format: uuid
+              required:
+              - ids
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DiscoverCard'
+                required:
+                - items
+        '400':
+          $ref: '#/components/responses/400'
+        '422':
+          $ref: '#/components/responses/422'
         '429':
           $ref: '#/components/responses/429'
   /api/v1/regions:
@@ -1026,36 +1009,6 @@ paths:
           $ref: '#/components/responses/422'
         '429':
           $ref: '#/components/responses/429'
-  /api/v1/manager/pending:
-    get:
-      summary: Pending registrations (PENDING_APPROVAL)
-      tags:
-      - manager
-      operationId: get_manager_pending
-      security:
-      - bearerAuth: []
-      parameters:
-      - $ref: '#/components/parameters/page'
-      - $ref: '#/components/parameters/page_size'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PageProfileSummary'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
   /api/v1/manager/profiles:
     get:
       summary: All profiles of the establishment
@@ -1107,7 +1060,8 @@ paths:
         '429':
           $ref: '#/components/responses/429'
     post:
-      summary: Create a DRAFT profile without linked account
+      summary: Create a professional profile, optionally with its login (ADR-022)
+      description: With username and password, a PROFESSIONAL account is created and linked; the professional signs in with it at /pro/login. The profile is ACTIVE at once when the house has a paid subscription, DRAFT otherwise.
       tags:
       - manager
       operationId: post_manager_profiles
@@ -1118,7 +1072,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ProfileInput'
+              $ref: '#/components/schemas/ProfileCreate'
       responses:
         '201':
           description: OK
@@ -1240,12 +1194,12 @@ paths:
           $ref: '#/components/responses/422'
         '429':
           $ref: '#/components/responses/429'
-  /api/v1/manager/profiles/{profileId}/reject:
+  /api/v1/manager/profiles/{profileId}/account:
     post:
-      summary: Reject a pending registration (profile and account deleted)
+      summary: Create the login of a profile that has none (ADR-022)
       tags:
       - manager
-      operationId: post_manager_profiles_profileId_reject
+      operationId: post_manager_profiles_profileId_account
       security:
       - bearerAuth: []
       parameters:
@@ -1260,63 +1214,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Reason'
+              $ref: '#/components/schemas/AccountCredentials'
       responses:
-        '204':
-          description: No Content
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '409':
-          $ref: '#/components/responses/409'
-  /api/v1/manager/profiles/{profileId}/attestation:
-    put:
-      summary: Attest age (≥ 18) and consent of the person (RM-21)
-      tags:
-      - manager
-      operationId: put_manager_profiles_profileId_attestation
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: profileId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                birth_date:
-                  type: string
-                  format: date
-                employment_reference:
-                  type: string
-                  maxLength: 100
-                  description: Optional internal reference
-                attested:
-                  type: boolean
-                  enum:
-                  - true
-              required:
-              - birth_date
-              - attested
-      responses:
-        '200':
-          description: OK
+        '201':
+          description: Created
           content:
             application/json:
               schema:
@@ -1329,42 +1230,15 @@ paths:
           $ref: '#/components/responses/403'
         '404':
           $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-    delete:
-      summary: Remove the attestation (unpublishes)
-      tags:
-      - manager
-      operationId: delete_manager_profiles_profileId_attestation
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: profileId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '204':
-          description: No Content
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
+        '409':
+          $ref: '#/components/responses/409'
         '422':
           $ref: '#/components/responses/422'
         '429':
           $ref: '#/components/responses/429'
   /api/v1/manager/profiles/{profileId}/activate:
     post:
-      summary: DRAFT/ARCHIVED → ACTIVE (attestation required)
+      summary: DRAFT/ARCHIVED → ACTIVE
       tags:
       - manager
       operationId: post_manager_profiles_profileId_activate
@@ -1400,7 +1274,7 @@ paths:
           $ref: '#/components/responses/409'
   /api/v1/manager/profiles/{profileId}/archive:
     post:
-      summary: 'Archive: unpublish, invalidate attestation, suspend linked account'
+      summary: 'Archive: unpublish, suspend linked account'
       tags:
       - manager
       operationId: post_manager_profiles_profileId_archive
@@ -2640,194 +2514,6 @@ paths:
           $ref: '#/components/responses/422'
         '429':
           $ref: '#/components/responses/429'
-  /api/v1/client/me:
-    get:
-      summary: Client account
-      tags:
-      - client
-      operationId: get_client_me
-      security:
-      - bearerAuth: []
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-    put:
-      summary: Change username
-      tags:
-      - client
-      operationId: put_client_me
-      security:
-      - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                username:
-                  type: string
-              required:
-              - username
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-        '409':
-          $ref: '#/components/responses/409'
-    delete:
-      summary: Delete the account (password required)
-      tags:
-      - client
-      operationId: delete_client_me
-      security:
-      - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                password:
-                  type: string
-              required:
-              - password
-      responses:
-        '204':
-          description: No Content
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/client/favorites:
-    get:
-      summary: Favourites (unpublished ones shown as unavailable)
-      tags:
-      - client
-      operationId: get_client_favorites
-      security:
-      - bearerAuth: []
-      parameters:
-      - $ref: '#/components/parameters/page'
-      - $ref: '#/components/parameters/page_size'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PageFavorite'
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/client/favorites/{profileId}:
-    put:
-      summary: Add a favourite (idempotent)
-      tags:
-      - client
-      operationId: put_client_favorites_profileId
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: profileId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '204':
-          description: No Content
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-    delete:
-      summary: Remove a favourite
-      tags:
-      - client
-      operationId: delete_client_favorites_profileId
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: profileId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '204':
-          description: No Content
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
   /api/v1/admin/stats:
     get:
       summary: KPIs
@@ -3306,46 +2992,6 @@ paths:
       responses:
         '204':
           description: No Content
-        '400':
-          $ref: '#/components/responses/400'
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '422':
-          $ref: '#/components/responses/422'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/admin/clients:
-    get:
-      summary: Clients
-      tags:
-      - admin
-      operationId: get_admin_clients
-      security:
-      - bearerAuth: []
-      parameters:
-      - $ref: '#/components/parameters/page'
-      - $ref: '#/components/parameters/page_size'
-      - name: status
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: q
-        in: query
-        required: false
-        schema:
-          type: string
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PageAdminUser'
         '400':
           $ref: '#/components/responses/400'
         '401':
@@ -3917,124 +3563,6 @@ paths:
           $ref: '#/components/responses/429'
         '500':
           description: Internal error (the provider retries)
-  /api/v1/client/discover:
-    get:
-      summary: Next profiles to like or pass (published, not yet rated, random order)
-      tags:
-      - client
-      operationId: get_client_discover
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          minimum: 1
-          maximum: 30
-          default: 15
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - items
-                - remaining
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/DiscoverCard'
-                  remaining:
-                    type: integer
-                    description: Profiles left to rate in total
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/client/dislikes/{profileId}:
-    put:
-      summary: Pass on a profile (hidden from the deck, removed from favorites)
-      tags:
-      - client
-      operationId: put_client_dislikes_profileId
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: profileId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '204':
-          description: No Content
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-    delete:
-      summary: Undo a pass (the profile comes back in the deck)
-      tags:
-      - client
-      operationId: delete_client_dislikes_profileId
-      security:
-      - bearerAuth: []
-      parameters:
-      - name: profileId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '204':
-          description: No Content
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '404':
-          $ref: '#/components/responses/404'
-        '429':
-          $ref: '#/components/responses/429'
-  /api/v1/client/dislikes:
-    delete:
-      summary: Bring every passed profile back in the deck
-      tags:
-      - client
-      operationId: delete_client_dislikes
-      security:
-      - bearerAuth: []
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - restored
-                properties:
-                  restored:
-                    type: integer
-        '401':
-          $ref: '#/components/responses/401'
-        '403':
-          $ref: '#/components/responses/403'
-        '429':
-          $ref: '#/components/responses/429'
 components:
   securitySchemes:
     bearerAuth:
@@ -4144,9 +3672,9 @@ components:
       - CLIENT
     Visibility:
       type: string
+      description: CLIENTS was retired with the client accounts (ADR-023).
       enum:
       - PUBLIC
-      - CLIENTS
       - HIDDEN
     ContactType:
       type: string
@@ -4431,24 +3959,6 @@ components:
       - visibilities
       - sorts
       - extra_attributes
-    SelectableEstablishment:
-      type: object
-      properties:
-        slug:
-          type: string
-        display_name:
-          type: string
-        city:
-          type: string
-          nullable: true
-        region:
-          type: string
-          nullable: true
-      required:
-      - slug
-      - display_name
-      - city
-      - region
     Contact:
       type: object
       properties:
@@ -4680,7 +4190,6 @@ components:
             - ESTABLISHMENT_SUBSCRIPTION_INACTIVE
             - PENDING_MANAGER_APPROVAL
             - PROFILE_NOT_ACTIVE
-            - PROFILE_NOT_ATTESTED
             - PROFILE_HIDDEN
             - NO_PRIMARY_PHOTO
             - PROFESSIONAL_ACCOUNT_INACTIVE
@@ -4689,31 +4198,6 @@ components:
       - published
       - published_at
       - reasons
-    Attestation:
-      type: object
-      properties:
-        attested:
-          type: boolean
-        attested_at:
-          type: string
-          format: date-time
-          nullable: true
-        age:
-          type: integer
-          nullable: true
-        birth_date:
-          type: string
-          format: date
-          description: Manager only
-        employment_reference:
-          type: string
-          description: Manager only
-      required:
-      - attested
-      - attested_at
-      - age
-      - birth_date
-      - employment_reference
     LinkedAccount:
       type: object
       properties:
@@ -4767,6 +4251,9 @@ components:
           type: string
         description:
           type: string
+        age:
+          type: integer
+          nullable: true
         height_cm:
           type: integer
           nullable: true
@@ -4799,8 +4286,6 @@ components:
         hidden_reason:
           type: string
           nullable: true
-        attestation:
-          $ref: '#/components/schemas/Attestation'
         photos:
           type: array
           items:
@@ -4835,6 +4320,7 @@ components:
       - display_name
       - headline
       - description
+      - age
       - height_cm
       - weight_kg
       - hair_color
@@ -4845,7 +4331,6 @@ components:
       - price_from_cents
       - is_hidden
       - hidden_reason
-      - attestation
       - photos
       - contacts
       - rates
@@ -4855,6 +4340,35 @@ components:
       - last_edit
       - publication
       - created_at
+    AccountCredentials:
+      type: object
+      description: Login of a professional, chosen by the house (ADR-022).
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 32
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+      required:
+      - username
+      - password
+    ProfileCreate:
+      allOf:
+      - $ref: '#/components/schemas/ProfileInput'
+      - type: object
+        description: Give both username and password to create the professional's login.
+        properties:
+          username:
+            type: string
+            minLength: 3
+            maxLength: 32
+          password:
+            type: string
+            minLength: 12
+            maxLength: 128
     ProfileInput:
       type: object
       properties:
@@ -4867,6 +4381,12 @@ components:
         description:
           type: string
           maxLength: 5000
+        age:
+          type: integer
+          minimum: 18
+          maximum: 99
+          nullable: true
+          description: Declared age, adults only
         height_cm:
           type: integer
           minimum: 120
@@ -4910,8 +4430,6 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/ProfileStatus'
-        attested:
-          type: boolean
         is_hidden:
           type: boolean
         photo_url:
@@ -4932,7 +4450,6 @@ components:
       - slug
       - display_name
       - status
-      - attested
       - is_hidden
       - photo_url
       - linked_account
@@ -4958,8 +4475,6 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/ProfileStatus'
-        attested:
-          type: boolean
         is_hidden:
           type: boolean
         hidden_reason:
@@ -4984,7 +4499,6 @@ components:
       - slug
       - display_name
       - status
-      - attested
       - is_hidden
       - hidden_reason
       - is_published
@@ -5030,9 +4544,6 @@ components:
           type: string
         headline:
           type: string
-        age:
-          type: integer
-          nullable: true
         price_from_cents:
           type: integer
           format: int64
@@ -5049,7 +4560,6 @@ components:
       - slug
       - display_name
       - headline
-      - age
       - price_from_cents
       - photo_url
       - establishment
@@ -5164,7 +4674,7 @@ components:
             $ref: '#/components/schemas/PublicContact'
         contacts_restricted:
           type: boolean
-          description: CLIENTS contacts exist but are hidden for this viewer
+          description: restricted contacts exist but are hidden for this viewer
         contacts_rate_limited:
           type: boolean
         establishment:
@@ -5511,8 +5021,6 @@ components:
           nullable: true
         entitled:
           type: boolean
-        pending_count:
-          type: integer
         profiles:
           type: array
           items:
@@ -5523,7 +5031,6 @@ components:
       - blocking_reasons
       - subscription
       - entitled
-      - pending_count
       - profiles
     EstablishmentStats:
       type: object
@@ -5569,8 +5076,6 @@ components:
           nullable: true
         status:
           $ref: '#/components/schemas/ProfileStatus'
-        attested:
-          type: boolean
         reasons:
           type: array
           items:
@@ -5579,47 +5084,7 @@ components:
       - published
       - published_at
       - status
-      - attested
       - reasons
-    Favorite:
-      type: object
-      properties:
-        profile_id:
-          type: string
-          format: uuid
-        slug:
-          type: string
-        display_name:
-          type: string
-        headline:
-          type: string
-        available:
-          type: boolean
-        age:
-          type: integer
-          nullable: true
-        price_from_cents:
-          type: integer
-          nullable: true
-        establishment_name:
-          type: string
-        city:
-          type: string
-          nullable: true
-        added_at:
-          type: string
-          format: date-time
-      required:
-      - profile_id
-      - slug
-      - display_name
-      - headline
-      - available
-      - age
-      - price_from_cents
-      - establishment_name
-      - city
-      - added_at
     AdminStats:
       type: object
       properties:
@@ -5839,27 +5304,6 @@ components:
       - page_size
       - total
       - total_pages
-    PageFavorite:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/Favorite'
-        page:
-          type: integer
-        page_size:
-          type: integer
-        total:
-          type: integer
-        total_pages:
-          type: integer
-      required:
-      - items
-      - page
-      - page_size
-      - total
-      - total_pages
     PageAdminEstablishmentRow:
       type: object
       properties:
@@ -5965,6 +5409,55 @@ components:
       - page_size
       - total
       - total_pages
+    DiscoverFilters:
+      type: object
+      additionalProperties: false
+      description: Lists match any of their values; empty fields do not filter. Prices in euros.
+      properties:
+        city:
+          type: string
+          description: City slug (GET /regions)
+        hair_color:
+          type: array
+          items:
+            type: string
+        eye_color:
+          type: array
+          items:
+            type: string
+        skin_tone:
+          type: array
+          items:
+            type: string
+        gender:
+          type: array
+          items:
+            type: string
+        height_min:
+          type: integer
+        height_max:
+          type: integer
+        age_min:
+          type: integer
+        age_max:
+          type: integer
+        price_min:
+          type: integer
+        price_max:
+          type: integer
+    DiscoverDeck:
+      type: object
+      required:
+      - items
+      - remaining
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiscoverCard'
+        remaining:
+          type: integer
+          format: int64
     DiscoverCard:
       type: object
       required:
@@ -5972,8 +5465,8 @@ components:
       - slug
       - display_name
       - headline
-      - age
       - price_from_cents
+      - age
       - languages
       - photos
       - categories

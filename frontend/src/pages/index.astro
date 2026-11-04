@@ -1,12 +1,12 @@
 ---
 import Public from '../layouts/Public.astro';
 
-// The profiles are reserved to signed-in users: the home page shows none.
-const discover = '/client/espace/decouvrir';
+// No client accounts (ADR-023): visitors go straight to the deck.
+const discover = '/decouvrir';
 ---
 <Public
   title="Professionnel·les et maisons près de chez toi"
-  description="Découvre les professionnel·les des maisons partenaires. Profils majeurs attestés, coordonnées protégées."
+  description="Découvre les professionnel·les des maisons partenaires. Coordonnées protégées."
   contained={false}
 >
   <section class="os-hero" aria-labelledby="hero-title">
@@ -26,16 +26,15 @@ const discover = '/client/espace/decouvrir';
         </h1>
         <p class="os-lead">
           Parcours les profils des professionnel·les des maisons présentes sur la plateforme.
-          Chaque profil est attesté majeur par sa maison. Tes recherches restent discrètes.
+          Tes recherches restent discrètes.
         </p>
-        <p class="os-lead">Les profils sont réservés aux membres : crée ton compte gratuit (un pseudo suffit) ou connecte-toi.</p>
+        <p class="os-lead">Aucun compte à créer : like ou passe les profils, tes favoris restent dans ton navigateur.</p>
         <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px;">
-          <a class="os-btn os-btn--primary" href="/client/register">Créer un compte</a>
-          <a class="os-btn os-btn--ghost" href={`/client/login?next=${encodeURIComponent(discover)}`}>Se connecter</a>
+          <a class="os-btn os-btn--primary" href={discover}>Découvrir les profils</a>
+          <a class="os-btn os-btn--ghost" href="/favoris">Mes favoris</a>
         </div>
         <div class="os-stats">
-          <div class="os-stat"><strong>18+</strong><span>âge attesté par la maison</span></div>
-          <div class="os-stat"><strong>0</strong><span>e-mail demandé</span></div>
+          <div class="os-stat"><strong>100 %</strong><span>coordonnées sous ton contrôle</span></div>
         </div>
       </div>
       <div class="os-mosaic" aria-hidden="true">
@@ -70,8 +69,8 @@ const discover = '/client/espace/decouvrir';
           <div class="os-feature__icon" aria-hidden="true">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
           </div>
-          <h3>Profils attestés</h3>
-          <p>Chaque maison atteste l’âge (18 ans minimum) et l’accord de chaque personne avant sa publication.</p>
+          <h3>Profils gérés par la maison</h3>
+          <p>Chaque maison accepte ses professionnel·les et choisit ce qui est publié à leur sujet.</p>
         </article>
         <article class="os-feature">
           <div class="os-feature__icon" aria-hidden="true">
@@ -100,13 +99,13 @@ const discover = '/client/espace/decouvrir';
       <div class="os-split__panel">
         <span class="os-eyebrow">Professionnel·les</span>
         <h3>Vous travaillez dans une maison ?</h3>
-        <p>Créez votre compte, choisissez votre maison et préparez votre profil : photos, présentation, tarifs, coordonnées.</p>
+        <p>Votre maison crée votre profil et vous remet un pseudo et un mot de passe : connectez-vous pour compléter photos, présentation, tarifs et coordonnées.</p>
         <ul>
-          <li>Vous gérez vous-même votre profil</li>
+          <li>Aucune inscription : vos accès viennent de votre maison</li>
           <li>Vous choisissez la visibilité de chaque coordonnée</li>
-          <li>Publication après validation par votre maison</li>
+          <li>Publication dès que l’abonnement de la maison est payé</li>
         </ul>
-        <a class="os-btn os-btn--ghost" href="/pro/register">Créer mon profil</a>
+        <a class="os-btn os-btn--ghost" href="/pro/login">Me connecter</a>
       </div>
     </div>
   </section>

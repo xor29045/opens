@@ -9,7 +9,6 @@ import (
 	"opensex/backend/internal/apperr"
 	"opensex/backend/internal/database"
 	"opensex/backend/internal/models"
-	"opensex/backend/internal/rbac"
 	"opensex/backend/internal/repositories"
 	"opensex/backend/internal/validators"
 )
@@ -432,8 +431,7 @@ func (s *AdminService) Delete(ctx context.Context, id uuid.UUID, reason string) 
 			}
 		case models.RoleProfessional:
 			if p, err := s.Repos.Profiles.ByUser(ctx, u.ID); err == nil {
-				cols := clearAttestation(rbac.ActorFrom(ctx))
-				cols["status"] = models.ProfileArchived
+				cols := map[string]any{"status": models.ProfileArchived}
 				if err := s.Repos.Profiles.Update(ctx, p.ID, cols); err != nil {
 					return apperr.Internal(err)
 				}

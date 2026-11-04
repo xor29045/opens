@@ -122,12 +122,6 @@ func (r *ProfileRepo) AllOfEstablishment(ctx context.Context, establishmentID uu
 	return out, err
 }
 
-func (r *ProfileRepo) CountPending(ctx context.Context, establishmentID uuid.UUID) (int64, error) {
-	var n int64
-	err := r.db(ctx).Model(&models.Profile{}).Where("establishment_id = ? AND status = ?", establishmentID, models.ProfilePendingApproval).Count(&n).Error
-	return n, err
-}
-
 // LinkedUserIDs returns the professional accounts attached to an establishment.
 func (r *ProfileRepo) LinkedUserIDs(ctx context.Context, establishmentID uuid.UUID) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
@@ -274,13 +268,13 @@ func (r *ProfileRepo) ReplaceCategories(ctx context.Context, profileID uuid.UUID
 	return r.db(ctx).Create(&rows).Error
 }
 
-// ActivateAttestedDrafts puts in service every attested DRAFT profile of an
-// establishment (used when its subscription gets paid). Pending
-// registrations (not attested) and archived profiles are left untouched.
-func (r *ProfileRepo) ActivateAttestedDrafts(ctx context.Context, establishmentID uuid.UUID, at time.Time) ([]uuid.UUID, error) {
+// ActivateDrafts puts in service every DRAFT profile of an establishment
+// (used when its subscription gets paid, ADR-021). Pending registrations
+// (not yet accepted by the house) and archived profiles are left untouched.
+func (r *ProfileRepo) ActivateDrafts(ctx context.Context, establishmentID uuid.UUID, at time.Time) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 	err := r.db(ctx).Raw(`UPDATE professional_profiles SET status = 'ACTIVE', updated_at = ?
-		WHERE establishment_id = ? AND status = 'DRAFT' AND attested_at IS NOT NULL AND deleted_at IS NULL
+		WHERE establishment_id = ? AND status = 'DRAFT' AND deleted_at IS NULL
 		RETURNING id`, at, establishmentID).Scan(&ids).Error
 	return ids, err
 }

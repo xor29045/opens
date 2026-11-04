@@ -111,29 +111,6 @@ func (s *AuthService) createUser(ctx context.Context, u *models.User, role strin
 }
 
 // RegisterClient creates a CLIENT account (role fixed by the endpoint, RM-01).
-func (s *AuthService) RegisterClient(ctx context.Context, in RegisterInput) (*AuthResult, error) {
-	if err := s.checkCredentials(ctx, in, false); err != nil {
-		return nil, err
-	}
-	u, err := s.newUser(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	var codes []string
-	err = s.tx(ctx, func(ctx context.Context) error {
-		if err := s.createUser(ctx, u, models.RoleClient); err != nil {
-			return err
-		}
-		codes, err = s.issueRecoveryCodes(ctx, u.ID)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return s.afterRegister(ctx, u, codes)
-}
-
-// RegisterManager creates a MANAGER account and its empty DRAFT establishment (RM-10).
 func (s *AuthService) RegisterManager(ctx context.Context, in RegisterInput) (*AuthResult, error) {
 	err := s.checkCredentials(ctx, in, false)
 	var c apperr.Collector
@@ -161,88 +138,6 @@ func (s *AuthService) RegisterManager(ctx context.Context, in RegisterInput) (*A
 			OpeningHours: models.JSON("{}"), CreatedAt: now, UpdatedAt: now,
 		}
 		if err := s.Repos.Establishments.Create(ctx, e); err != nil {
-			return apperr.Internal(err)
-		}
-		codes, err = s.issueRecoveryCodes(ctx, u.ID)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return s.afterRegister(ctx, u, codes)
-}
-
-// RegisterProfessional creates a PROFESSIONAL account attached to the chosen
-// house with a PENDING_APPROVAL profile (RM-01b). Nothing is published until
-// the manager attests the profile.
-func (s *AuthService) RegisterProfessional(ctx context.Context, in RegisterInput) (*AuthResult, error) {
-	err := s.checkCredentials(ctx, in, false)
-	var c apperr.Collector
-	if !validators.IsSlug(in.EstablishmentSlug) {
-		c.Add("establishment_slug", "required")
-	}
-	displayName := strings.TrimSpace(in.DisplayName)
-	if displayName == "" {
-		displayName = in.Username
-	}
-	if dn, code := validators.PlainText(displayName, 60); code != "" || dn == "" {
-		c.Add("display_name", "invalid")
-	}
-	if err != nil || c.Err() != nil {
-		return nil, mergeValidation(err, c.Err())
-	}
-	u, err := s.newUser(ctx, in)
-	if err != nil {
-		return nil, err
-	}
-	var codes []string
-	err = s.tx(ctx, func(ctx context.Context) error {
-		e, err := s.Repos.Establishments.BySlug(ctx, in.EstablishmentSlug)
-		if err != nil {
-			if database.IsNotFound(err) {
-				return apperr.Invalid("establishment_slug", "establishment_not_selectable")
-			}
-			return apperr.Internal(err)
-		}
-		// Serialise registrations of the same house to enforce the quota.
-		if e, err = s.Repos.Establishments.ByIDForUpdate(ctx, e.ID); err != nil {
-			return apperr.Internal(err)
-		}
-		// Moderation only: a house hidden by the platform, without a public
-		// name or whose manager is suspended does not accept registrations.
-		manager, err := s.Repos.Users.ByID(ctx, e.ManagerUserID)
-		if err != nil {
-			return apperr.Internal(err)
-		}
-		if e.DisplayName == "" || e.IsHidden || manager.Status != models.UserActive {
-			return apperr.Invalid("establishment_slug", "establishment_not_selectable")
-		}
-
-		plan, err := s.Billing.planForLimits(ctx, e.ID)
-		if err != nil {
-			return err
-		}
-		pending, err := s.Repos.Profiles.CountPending(ctx, e.ID)
-		if err != nil {
-			return apperr.Internal(err)
-		}
-		if pending >= int64(plan.MaxPendingProfiles) {
-			return apperr.Unprocessable("establishment_pending_quota", "this establishment has too many pending registrations")
-		}
-		if err := s.createUser(ctx, u, models.RoleProfessional); err != nil {
-			return err
-		}
-		slug, err := s.Profiles.uniqueSlug(ctx, displayName)
-		if err != nil {
-			return err
-		}
-		now := s.now()
-		p := &models.Profile{
-			ID: models.NewID(), EstablishmentID: e.ID, UserID: &u.ID, Slug: slug, DisplayName: displayName,
-			Languages: models.StringArray{}, ExtraAttributes: models.JSON("{}"), Status: models.ProfilePendingApproval,
-			LastEditedBy: &u.ID, CreatedAt: now, UpdatedAt: now,
-		}
-		if err := s.Repos.Profiles.Create(ctx, p); err != nil {
 			return apperr.Internal(err)
 		}
 		codes, err = s.issueRecoveryCodes(ctx, u.ID)
@@ -492,6 +387,9 @@ func (s *AuthService) Login(ctx context.Context, in LoginInput, admin bool) (*Au
 	}
 	if (u.Role == models.RoleAdmin) != admin {
 		return nil, failed(u, "wrong_endpoint")
+	}
+	if u.Role == models.RoleClient { // client accounts are retired (ADR-023)
+		return nil, failed(u, "client_retired")
 	}
 	cols := map[string]any{"failed_login_count": 0, "locked_until": nil, "last_login_at": now}
 	if rehash {

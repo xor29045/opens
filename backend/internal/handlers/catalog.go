@@ -49,10 +49,11 @@ func (h *Handler) SearchProfiles(c *gin.Context) {
 	var errs apperr.Collector
 	f := repositories.CatalogFilter{
 		Region: c.Query("region"), City: c.Query("city"), Establishment: c.Query("establishment"),
-		Categories: multi(c, "categories"),
-		AgeMin:     intQuery(c, "age_min", &errs), AgeMax: intQuery(c, "age_max", &errs),
+		Categories:    multi(c, "categories"),
 		PriceMinCents: int64(intQuery(c, "price_min", &errs)) * 100, PriceMaxCents: int64(intQuery(c, "price_max", &errs)) * 100,
 		HeightMin: intQuery(c, "height_min", &errs), HeightMax: intQuery(c, "height_max", &errs),
+		AgeMin: intQuery(c, "age_min", &errs), AgeMax: intQuery(c, "age_max", &errs),
+		SkinTones: upper(multi(c, "skin_tone")), Genders: upper(multi(c, "gender")),
 		HairColors: upper(multi(c, "hair_color")), EyeColors: upper(multi(c, "eye_color")), BodyTypes: upper(multi(c, "body_type")),
 		Languages: multi(c, "languages"), Sort: c.Query("sort"),
 	}

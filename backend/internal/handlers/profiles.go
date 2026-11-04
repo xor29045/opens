@@ -3,7 +3,6 @@ package handlers
 import (
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -34,7 +33,7 @@ func (h *Handler) renderProfile(c *gin.Context, status int, d *services.ProfileD
 }
 
 func profileInput(r dto.ProfileRequest) services.ProfileInput {
-	return services.ProfileInput{DisplayName: r.DisplayName, Headline: r.Headline, Description: r.Description, HeightCm: r.HeightCm,
+	return services.ProfileInput{DisplayName: r.DisplayName, Headline: r.Headline, Description: r.Description, Age: r.Age, HeightCm: r.HeightCm,
 		WeightKg: r.WeightKg, HairColor: r.HairColor, EyeColor: r.EyeColor, BodyType: r.BodyType, Languages: r.Languages,
 		ExtraAttributes: r.ExtraAttributes}
 }
@@ -70,11 +69,15 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 }
 
 func (h *Handler) CreateProfile(c *gin.Context) {
-	var req dto.ProfileRequest
+	var req dto.ProfileCreateRequest
 	if !h.bind(c, &req) {
 		return
 	}
-	d, err := h.Svc.Profiles.CreateByManager(c.Request.Context(), actor(c), profileInput(req))
+	var account *services.AccountInput
+	if req.Username != "" || req.Password != "" {
+		account = &services.AccountInput{Username: req.Username, Password: req.Password}
+	}
+	d, err := h.Svc.Profiles.CreateByManager(c.Request.Context(), actor(c), profileInput(req.ProfileRequest), account)
 	if err != nil {
 		fail(c, err)
 		return
@@ -86,16 +89,6 @@ func (h *Handler) ListProfiles(c *gin.Context) {
 	p := page(c)
 	f := repositories.ProfileFilter{Status: c.Query("status"), Published: optBool(c, "published"), Linked: optBool(c, "linked"), Query: c.Query("q")}
 	items, total, err := h.Svc.Profiles.List(c.Request.Context(), actor(c), f, p)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	ok(c, dto.Paginate(dto.MapSlice(items, dto.NewProfileSummary), p, total))
-}
-
-func (h *Handler) PendingProfiles(c *gin.Context) {
-	p := page(c)
-	items, total, err := h.Svc.Profiles.List(c.Request.Context(), actor(c), repositories.ProfileFilter{Status: models.ProfilePendingApproval}, p)
 	if err != nil {
 		fail(c, err)
 		return
@@ -291,40 +284,6 @@ func (h *Handler) ProfessionalPublicationStatus(c *gin.Context) {
 
 // ---------------------------------------------------------------- manager-only lifecycle
 
-func (h *Handler) Attest(c *gin.Context) {
-	id, valid := uuidParam(c, "profileId")
-	if !valid {
-		return
-	}
-	var req dto.AttestationRequest
-	if !h.bind(c, &req) {
-		return
-	}
-	birth, err := time.Parse("2006-01-02", req.BirthDate)
-	if err != nil {
-		fail(c, apperr.Invalid("birth_date", "invalid_date"))
-		return
-	}
-	d, err := h.Svc.Profiles.Attest(c.Request.Context(), actor(c), id, birth, req.EmploymentReference, req.Attested)
-	if err != nil {
-		fail(c, err)
-		return
-	}
-	h.renderProfile(c, http.StatusOK, d)
-}
-
-func (h *Handler) RemoveAttestation(c *gin.Context) {
-	id, valid := uuidParam(c, "profileId")
-	if !valid {
-		return
-	}
-	if err := h.Svc.Profiles.RemoveAttestation(c.Request.Context(), actor(c), id); err != nil {
-		fail(c, err)
-		return
-	}
-	noContent(c)
-}
-
 func (h *Handler) ActivateProfile(c *gin.Context) {
 	id, valid := uuidParam(c, "profileId")
 	if !valid {
@@ -344,22 +303,6 @@ func (h *Handler) ArchiveProfile(c *gin.Context) {
 		return
 	}
 	if err := h.Svc.Profiles.Archive(c.Request.Context(), actor(c), id); err != nil {
-		fail(c, err)
-		return
-	}
-	noContent(c)
-}
-
-func (h *Handler) RejectRegistration(c *gin.Context) {
-	id, valid := uuidParam(c, "profileId")
-	if !valid {
-		return
-	}
-	var req dto.ReasonRequest
-	if !h.bind(c, &req) {
-		return
-	}
-	if err := h.Svc.Staff.Reject(c.Request.Context(), actor(c), id, req.Reason); err != nil {
 		fail(c, err)
 		return
 	}
@@ -409,4 +352,22 @@ func (h *Handler) ResetStaffPassword(c *gin.Context) {
 		return
 	}
 	ok(c, gin.H{"temporary_password": pwd})
+}
+
+// CreateProfileAccount gives a login (username + password) to a profile.
+func (h *Handler) CreateProfileAccount(c *gin.Context) {
+	id, valid := uuidParam(c, "profileId")
+	if !valid {
+		return
+	}
+	var req dto.AccountRequest
+	if !h.bind(c, &req) {
+		return
+	}
+	d, err := h.Svc.Profiles.CreateAccount(c.Request.Context(), actor(c), id, services.AccountInput{Username: req.Username, Password: req.Password})
+	if err != nil {
+		fail(c, err)
+		return
+	}
+	h.renderProfile(c, http.StatusCreated, d)
 }

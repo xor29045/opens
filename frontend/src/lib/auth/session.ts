@@ -1,6 +1,7 @@
 import { atom } from 'nanostores';
 
-export type Role = 'ADMIN' | 'MANAGER' | 'PROFESSIONAL' | 'CLIENT';
+// No client accounts anymore (ADR-023).
+export type Role = 'ADMIN' | 'MANAGER' | 'PROFESSIONAL';
 
 export interface SessionUser {
   id: string;
@@ -34,7 +35,6 @@ export const homeFor: Record<Role, string> = {
   ADMIN: '/admin',
   MANAGER: '/gerant/dashboard',
   PROFESSIONAL: '/pro/dashboard',
-  CLIENT: '/client/espace',
 };
 
 /** The login page of a role's space. */
@@ -42,5 +42,4 @@ export const loginFor: Record<Role, string> = {
   ADMIN: '/admin/login',
   MANAGER: '/gerant/login',
   PROFESSIONAL: '/pro/login',
-  CLIENT: '/client/login',
 };

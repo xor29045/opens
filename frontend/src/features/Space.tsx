@@ -10,8 +10,6 @@ import ProfilesList from './manager/ProfilesList';
 import { Subscription, Invoices, ManagerStats } from './manager/Billing';
 import ProfileEditor from './profile/ProfileEditor';
 import { ProStatus, ProPreview } from './pro/ProPages';
-import { ClientFavorites, ClientAccount } from './client/ClientPages';
-import SwipeDeck from './client/SwipeDeck';
 import Security from './account/Security';
 import { AdminDashboard, AdminEstablishments, AdminProfiles, AdminUsers, AdminBilling } from './admin/AdminPages';
 
@@ -33,10 +31,6 @@ const pages: Record<string, { role: Role; title: string; component: ComponentTyp
   'pro.status': { role: 'PROFESSIONAL', title: 'Statut de publication', component: ProStatus },
   'pro.preview': { role: 'PROFESSIONAL', title: 'Aperçu', component: ProPreview },
   'pro.security': { role: 'PROFESSIONAL', title: 'Sécurité du compte', component: () => <Security /> },
-  'client.discover': { role: 'CLIENT', title: 'Découvrir', component: SwipeDeck },
-  'client.favorites': { role: 'CLIENT', title: 'Favoris', component: ClientFavorites },
-  'client.account': { role: 'CLIENT', title: 'Mon compte', component: ClientAccount },
-  'client.security': { role: 'CLIENT', title: 'Sécurité du compte', component: () => <Security /> },
   'admin.dashboard': { role: 'ADMIN', title: 'Tableau de bord', component: AdminDashboard },
   'admin.establishments': { role: 'ADMIN', title: 'Établissements', component: AdminEstablishments },
   'admin.profiles': { role: 'ADMIN', title: 'Profils', component: AdminProfiles },

@@ -245,6 +245,7 @@ var (
 // ExtraAttributes is the closed list of keys of professional_profiles.extra_attributes.
 var ExtraAttributes = map[string][]string{
 	"gender":    {"FEMALE", "MALE", "TRANS_WOMAN", "TRANS_MAN", "NON_BINARY"},
+	"skin_tone": {"FAIR", "LIGHT", "MEDIUM", "OLIVE", "TAN", "BROWN", "DARK"},
 	"tattoos":   {"true", "false"},
 	"piercings": {"true", "false"},
 	"smoker":    {"true", "false"},

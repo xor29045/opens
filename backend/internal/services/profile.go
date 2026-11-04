@@ -100,16 +100,15 @@ type PhotoView struct {
 }
 
 type ProfileDetail struct {
-	Profile             *models.Profile
-	EmploymentReference string
-	Photos              []PhotoView
-	Contacts            []models.ProfileContact
-	Rates               []models.ProfileRate
-	Categories          []models.Category
-	Establishment       *models.Establishment
-	LinkedUser          *models.User
-	LastEditor          *models.User
-	Reasons             []string
+	Profile       *models.Profile
+	Photos        []PhotoView
+	Contacts      []models.ProfileContact
+	Rates         []models.ProfileRate
+	Categories    []models.Category
+	Establishment *models.Establishment
+	LinkedUser    *models.User
+	LastEditor    *models.User
+	Reasons       []string
 }
 
 func (s *ProfileService) photoURL(ctx context.Context, key string, public bool) string {
@@ -154,11 +153,6 @@ func (s *ProfileService) detail(ctx context.Context, actor *rbac.Actor, p *model
 	if p.LastEditedBy != nil {
 		if u, err := s.Repos.Users.ByID(ctx, *p.LastEditedBy); err == nil {
 			d.LastEditor = u
-		}
-	}
-	if actor.Is(models.RoleManager) && p.EmploymentReference != nil {
-		if ref, err := s.Encryptor.Decrypt(*p.EmploymentReference); err == nil {
-			d.EmploymentReference = ref
 		}
 	}
 	st, err := s.Publication.EstablishmentState(ctx, d.Establishment)
@@ -247,6 +241,7 @@ type ProfileInput struct {
 	DisplayName     string
 	Headline        string
 	Description     string
+	Age             *int
 	HeightCm        *int
 	WeightKg        *int
 	HairColor       *string
@@ -274,6 +269,10 @@ func validateProfileInput(in ProfileInput) (map[string]any, error) {
 		c.Add("description", code)
 	}
 	cols["description"] = desc
+	if in.Age != nil && (*in.Age < 18 || *in.Age > 99) {
+		c.Add("age", "out_of_range")
+	}
+	cols["age"] = in.Age
 	if in.HeightCm != nil && (*in.HeightCm < 120 || *in.HeightCm > 230) {
 		c.Add("height_cm", "out_of_range")
 	}
@@ -325,11 +324,44 @@ func firstNonEmpty(v ...string) string {
 	return ""
 }
 
-// CreateByManager creates a DRAFT profile without linked account (RM-20).
-func (s *ProfileService) CreateByManager(ctx context.Context, actor *rbac.Actor, in ProfileInput) (*ProfileDetail, error) {
+// AccountInput holds the credentials a manager gives to a professional.
+type AccountInput struct {
+	Username string
+	Password string
+}
+
+// newProfessionalAccount validates and hashes the credentials chosen by the
+// manager. The account is created inside the caller's transaction.
+func (s *ProfileService) newProfessionalAccount(ctx context.Context, acc AccountInput) (*models.User, error) {
+	in := RegisterInput{Username: strings.TrimSpace(acc.Username), Password: acc.Password, AcceptTerms: true}
+	if err := s.Auth.checkCredentials(ctx, in, false); err != nil {
+		return nil, err
+	}
+	u, err := s.Auth.newUser(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	u.RecoveryCodesConfirmedAt = &now // no recovery codes: the manager resets the password
+	return u, nil
+}
+
+// CreateByManager creates a profile of the house, with an optional login for
+// the professional (ADR-022). Professionals never register by themselves.
+// With a paid subscription the profile is in service at once (ADR-021).
+func (s *ProfileService) CreateByManager(ctx context.Context, actor *rbac.Actor, in ProfileInput, account *AccountInput) (*ProfileDetail, error) {
+	if err := s.requireManager(actor); err != nil {
+		return nil, err
+	}
 	cols, err := validateProfileInput(in)
 	if err != nil {
 		return nil, err
+	}
+	var user *models.User
+	if account != nil {
+		if user, err = s.newProfessionalAccount(ctx, *account); err != nil {
+			return nil, err
+		}
 	}
 	var out *ProfileDetail
 	err = s.tx(ctx, func(ctx context.Context) error {
@@ -338,9 +370,23 @@ func (s *ProfileService) CreateByManager(ctx context.Context, actor *rbac.Actor,
 			return err
 		}
 		now := s.now()
-		p := &models.Profile{ID: models.NewID(), EstablishmentID: actor.EstablishmentID, Slug: slug, Status: models.ProfileDraft,
+		entitled, _, err := s.Repos.Profiles.HasEntitlement(ctx, actor.EstablishmentID, now)
+		if err != nil {
+			return apperr.Internal(err)
+		}
+		status := models.ProfileDraft
+		if entitled {
+			status = models.ProfileActive
+		}
+		p := &models.Profile{ID: models.NewID(), EstablishmentID: actor.EstablishmentID, Slug: slug, Status: status,
 			Languages: models.StringArray{}, ExtraAttributes: models.JSON("{}"), LastEditedBy: &actor.UserID, CreatedAt: now, UpdatedAt: now,
 			DisplayName: cols["display_name"].(string)}
+		if user != nil {
+			if err := s.Auth.createUser(ctx, user, models.RoleProfessional); err != nil {
+				return err
+			}
+			p.UserID = &user.ID
+		}
 		if err := s.Repos.Profiles.Create(ctx, p); err != nil {
 			return apperr.Internal(err)
 		}
@@ -350,6 +396,39 @@ func (s *ProfileService) CreateByManager(ctx context.Context, actor *rbac.Actor,
 		}
 		p, err = s.Repos.Profiles.ByID(ctx, p.ID)
 		if err != nil {
+			return apperr.Internal(err)
+		}
+		out, err = s.detail(ctx, actor, p)
+		return err
+	})
+	return out, err
+}
+
+// CreateAccount gives a login to a profile of the house that has none yet.
+func (s *ProfileService) CreateAccount(ctx context.Context, actor *rbac.Actor, id uuid.UUID, account AccountInput) (*ProfileDetail, error) {
+	if err := s.requireManager(actor); err != nil {
+		return nil, err
+	}
+	user, err := s.newProfessionalAccount(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	var out *ProfileDetail
+	err = s.tx(ctx, func(ctx context.Context) error {
+		p, err := s.resolve(ctx, actor, id, true)
+		if err != nil {
+			return err
+		}
+		if p.UserID != nil {
+			return apperr.Conflict("account_exists", "this profile already has a login")
+		}
+		if err := s.Auth.createUser(ctx, user, models.RoleProfessional); err != nil {
+			return err
+		}
+		if err := s.Repos.Profiles.Update(ctx, p.ID, map[string]any{"user_id": user.ID, "last_edited_by": actor.UserID}); err != nil {
+			return apperr.Internal(err)
+		}
+		if p, err = s.Repos.Profiles.ByID(ctx, p.ID); err != nil {
 			return apperr.Internal(err)
 		}
 		out, err = s.detail(ctx, actor, p)
@@ -732,65 +811,8 @@ func (s *ProfileService) photoViews(ctx context.Context, profileID uuid.UUID) ([
 
 // ---------------------------------------------------------------- manager-only lifecycle
 
-// Attest records the manager's attestation (RM-21): birth date (≥ 18),
-// employment contract reference and the written agreement of the person.
-// Attesting a PENDING_APPROVAL profile accepts the registration (RM-01b).
-func (s *ProfileService) Attest(ctx context.Context, actor *rbac.Actor, id uuid.UUID, birthDate time.Time, reference string, attested bool) (*ProfileDetail, error) {
-	if err := s.requireManager(actor); err != nil {
-		return nil, err
-	}
-	var c apperr.Collector
-	if !attested {
-		c.Add("attested", "must_be_true")
-	}
-	if birthDate.IsZero() || birthDate.Year() < 1900 {
-		c.Add("birth_date", "invalid_date")
-	} else if !isAdult(birthDate, s.now()) {
-		c.Add("birth_date", "under_18")
-	}
-	ref, code := validators.PlainText(reference, 100)
-	if code != "" {
-		c.Add("employment_reference", code)
-	}
-	if err := c.Err(); err != nil {
-		return nil, err
-	}
-	var out *ProfileDetail
-	err := s.tx(ctx, func(ctx context.Context) error {
-		p, err := s.resolve(ctx, actor, id, true)
-		if err != nil {
-			return err
-		}
-		now := s.now()
-		cols := map[string]any{"birth_date_attested": birthDate, "employment_reference": nil,
-			"attested_at": now, "attested_by": actor.UserID, "last_edited_by": actor.UserID}
-		if ref != "" {
-			cols["employment_reference"] = s.Encryptor.Encrypt(ref)
-		}
-		accepted := p.Status == models.ProfilePendingApproval
-		if accepted {
-			cols["status"] = models.ProfileDraft
-		}
-		if err := s.Repos.Profiles.Update(ctx, p.ID, cols); err != nil {
-			return apperr.Internal(err)
-		}
-		if err := s.Publication.Recompute(ctx, p.EstablishmentID); err != nil {
-			return err
-		}
-		if p, err = s.Repos.Profiles.ByID(ctx, p.ID); err != nil {
-			return apperr.Internal(err)
-		}
-		out, err = s.detail(ctx, actor, p)
-		return err
-	})
-	return out, err
-}
-
-func isAdult(birth, now time.Time) bool {
-	return !birth.AddDate(18, 0, 0).After(now)
-}
-
-// AgeAt returns the age in full years.
+// AgeAt returns the age in full years (used for the age shown on cards when
+// the platform holds a birth date, e.g. demo data).
 func AgeAt(birth, now time.Time) int {
 	age := now.Year() - birth.Year()
 	if now.Month() < birth.Month() || (now.Month() == birth.Month() && now.Day() < birth.Day()) {
@@ -799,27 +821,7 @@ func AgeAt(birth, now time.Time) int {
 	return age
 }
 
-func (s *ProfileService) RemoveAttestation(ctx context.Context, actor *rbac.Actor, id uuid.UUID) error {
-	if err := s.requireManager(actor); err != nil {
-		return err
-	}
-	return s.tx(ctx, func(ctx context.Context) error {
-		p, err := s.resolve(ctx, actor, id, true)
-		if err != nil {
-			return err
-		}
-		if err := s.Repos.Profiles.Update(ctx, p.ID, clearAttestation(actor)); err != nil {
-			return apperr.Internal(err)
-		}
-		return s.Publication.Recompute(ctx, p.EstablishmentID)
-	})
-}
-
-func clearAttestation(actor *rbac.Actor) map[string]any {
-	return map[string]any{"birth_date_attested": nil, "employment_reference": nil, "attested_at": nil, "attested_by": nil, "last_edited_by": actor.UserID}
-}
-
-// Activate moves a DRAFT or ARCHIVED profile to ACTIVE; an attestation is required.
+// Activate moves a DRAFT or ARCHIVED profile to ACTIVE.
 func (s *ProfileService) Activate(ctx context.Context, actor *rbac.Actor, id uuid.UUID) (*ProfileDetail, error) {
 	if err := s.requireManager(actor); err != nil {
 		return nil, err
@@ -832,9 +834,6 @@ func (s *ProfileService) Activate(ctx context.Context, actor *rbac.Actor, id uui
 		}
 		if p.Status != models.ProfileDraft && p.Status != models.ProfileArchived {
 			return apperr.Conflict("invalid_state", "profile cannot be activated from status "+p.Status)
-		}
-		if p.AttestedAt == nil {
-			return apperr.Unprocessable("attestation_required", "the profile must be attested before activation")
 		}
 		if err := s.Repos.Profiles.Update(ctx, p.ID, map[string]any{"status": models.ProfileActive, "last_edited_by": actor.UserID}); err != nil {
 			return apperr.Internal(err)
@@ -851,7 +850,7 @@ func (s *ProfileService) Activate(ctx context.Context, actor *rbac.Actor, id uui
 	return out, err
 }
 
-// Archive unpublishes the profile, invalidates the attestation and suspends
+// Archive unpublishes the profile and suspends
 // the linked professional account (RM-24).
 func (s *ProfileService) Archive(ctx context.Context, actor *rbac.Actor, id uuid.UUID) error {
 	if err := s.requireManager(actor); err != nil {
@@ -866,11 +865,7 @@ func (s *ProfileService) Archive(ctx context.Context, actor *rbac.Actor, id uuid
 		if p.Status == models.ProfileArchived {
 			return apperr.Conflict("invalid_state", "profile already archived")
 		}
-		if p.Status == models.ProfilePendingApproval {
-			return apperr.Conflict("invalid_state", "a pending registration must be attested or rejected")
-		}
-		cols := clearAttestation(actor)
-		cols["status"] = models.ProfileArchived
+		cols := map[string]any{"status": models.ProfileArchived, "last_edited_by": actor.UserID}
 		if err := s.Repos.Profiles.Update(ctx, p.ID, cols); err != nil {
 			return apperr.Internal(err)
 		}
@@ -926,7 +921,6 @@ type PublicationStatus struct {
 	Published   bool       `json:"published"`
 	PublishedAt *time.Time `json:"published_at"`
 	Status      string     `json:"status"`
-	Attested    bool       `json:"attested"`
 	Reasons     []string   `json:"reasons"`
 }
 
@@ -936,7 +930,7 @@ func (s *ProfileService) PublicationStatus(ctx context.Context, actor *rbac.Acto
 		return nil, err
 	}
 	return &PublicationStatus{Published: d.Profile.IsPublished, PublishedAt: d.Profile.PublishedAt, Status: d.Profile.Status,
-		Attested: d.Profile.AttestedAt != nil, Reasons: d.Reasons}, nil
+		Reasons: d.Reasons}, nil
 }
 
 // Preview renders the profile as the public would see it (contacts except HIDDEN).

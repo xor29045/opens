@@ -53,11 +53,10 @@ var (
 	internal = Access{Internal: true}
 	cookie   = Access{Cookie: true}
 	webhook  = Access{Webhook: true}
-	anyUser  = Access{Roles: []string{models.RoleAdmin, models.RoleManager, models.RoleProfessional, models.RoleClient}}
-	nonAdmin = Access{Roles: []string{models.RoleManager, models.RoleProfessional, models.RoleClient}}
+	anyUser  = Access{Roles: []string{models.RoleAdmin, models.RoleManager, models.RoleProfessional}}
+	nonAdmin = Access{Roles: []string{models.RoleManager, models.RoleProfessional}}
 	manager  = Access{Roles: []string{models.RoleManager}}
 	pro      = Access{Roles: []string{models.RoleProfessional}}
-	client   = Access{Roles: []string{models.RoleClient}}
 	admin    = Access{Roles: []string{models.RoleAdmin}}
 )
 
@@ -142,10 +141,7 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	registerRL := rl.ByIP("register", false, ratelimit.PerHour(3), ratelimit.PerDay(10))
 	loginRL := rl.ByIP("login", false, ratelimit.PerMinute(20))
 	adminLoginRL := rl.ByIP("login_admin", true, ratelimit.PerMinute(3), ratelimit.PerHour(10))
-	r.handle(a, RouteSpec{Method: http.MethodPost, Path: "/register/client", Access: pub}, registerRL, h.RegisterClient)
 	r.handle(a, RouteSpec{Method: http.MethodPost, Path: "/register/manager", Access: pub}, registerRL, h.RegisterManager)
-	r.handle(a, RouteSpec{Method: http.MethodPost, Path: "/register/professional", Access: pub}, registerRL, h.RegisterProfessional)
-	r.handle(a, RouteSpec{Method: http.MethodGet, Path: "/register/establishments", Access: pub}, publicRL, h.RegisterEstablishments)
 	r.handle(a, RouteSpec{Method: http.MethodPost, Path: "/login", Access: pub}, loginRL, h.Login)
 	r.handle(a, RouteSpec{Method: http.MethodPost, Path: "/admin/login", Access: pub},
 		middlewares.AdminIPAllowlist(d.Cfg.AdminAllowedCIDRs), adminLoginRL, h.AdminLogin)
@@ -170,15 +166,17 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	self(nonAdmin, false, "/recovery-codes/status", http.MethodGet, h.RecoveryCodesStatus)
 	self(nonAdmin, false, "/recovery-codes/regenerate", http.MethodPost, rl.ByUser("sensitive", ratelimit.PerHour(5)), h.RegenerateRecoveryCodes)
 
-	// ---- catalogue: profiles and establishments are visible to signed-in users only
-	catG := api.Group("", auth.RequireAuth(), middlewares.RequireRole(anyUser.Roles...), middlewares.RequirePasswordChanged(),
-		rl.ByUser("catalog", ratelimit.PerMinute(120)))
-	r.handle(catG, RouteSpec{Method: http.MethodGet, Path: "/profiles", Access: anyUser}, h.SearchProfiles)
-	r.handle(catG, RouteSpec{Method: http.MethodGet, Path: "/profiles/:slug", Access: anyUser}, h.PublicProfile)
-	r.handle(catG, RouteSpec{Method: http.MethodGet, Path: "/establishments/:slug", Access: anyUser}, h.PublicEstablishment)
+	// ---- catalogue and "Découvrir" deck: public, there are no client
+	// accounts anymore (ADR-023). Staff tokens are still read (OptionalAuth)
+	// so a house sees its own restricted contacts.
+	pubG := api.Group("", publicRL, auth.OptionalAuth())
+	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/profiles", Access: pub}, h.SearchProfiles)
+	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/profiles/:slug", Access: pub}, h.PublicProfile)
+	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/establishments/:slug", Access: pub}, h.PublicEstablishment)
+	r.handle(pubG, RouteSpec{Method: http.MethodPost, Path: "/discover", Access: pub}, h.Discover)
+	r.handle(pubG, RouteSpec{Method: http.MethodPost, Path: "/discover/cards", Access: pub}, h.DiscoverCards)
 
 	// ---- public reference data
-	pubG := api.Group("", publicRL, auth.OptionalAuth())
 	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/regions", Access: pub}, h.Regions)
 	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/categories", Access: pub}, h.Categories)
 	r.handle(pubG, RouteSpec{Method: http.MethodGet, Path: "/attributes", Access: pub}, h.Attributes)
@@ -198,15 +196,12 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	mh(http.MethodPut, "/establishment/contacts", h.ReplaceEstablishmentContacts)
 	mh(http.MethodGet, "/publication-status", h.ManagerOverview)
 	mh(http.MethodGet, "/stats", h.ManagerStats)
-	mh(http.MethodGet, "/pending", h.PendingProfiles)
 	mh(http.MethodGet, "/profiles", h.ListProfiles)
 	mh(http.MethodPost, "/profiles", h.CreateProfile)
 	mh(http.MethodGet, "/profiles/:profileId", h.GetProfile)
 	mh(http.MethodPut, "/profiles/:profileId", h.UpdateProfile)
 	mh(http.MethodDelete, "/profiles/:profileId", h.DeleteProfile)
-	mh(http.MethodPost, "/profiles/:profileId/reject", h.RejectRegistration)
-	mh(http.MethodPut, "/profiles/:profileId/attestation", h.Attest)
-	mh(http.MethodDelete, "/profiles/:profileId/attestation", h.RemoveAttestation)
+	mh(http.MethodPost, "/profiles/:profileId/account", h.CreateProfileAccount)
 	mh(http.MethodPost, "/profiles/:profileId/activate", h.ActivateProfile)
 	mh(http.MethodPost, "/profiles/:profileId/archive", h.ArchiveProfile)
 	mh(http.MethodPut, "/profiles/:profileId/categories", h.ReplaceProfileCategories)
@@ -253,22 +248,6 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	bh(http.MethodGet, "/invoices", h.Invoices)
 	bh(http.MethodGet, "/invoices/:id/pdf", h.InvoicePDF)
 
-	// ---- client space
-	cl := api.Group("/client", guard(models.RoleClient)...)
-	ch := func(method, path string, hs ...gin.HandlerFunc) {
-		r.handle(cl, RouteSpec{Method: method, Path: path, Access: client}, hs...)
-	}
-	ch(http.MethodGet, "/me", h.ClientMe)
-	ch(http.MethodPut, "/me", h.ClientRename)
-	ch(http.MethodDelete, "/me", h.ClientDelete)
-	ch(http.MethodGet, "/favorites", h.Favorites)
-	ch(http.MethodPut, "/favorites/:profileId", h.AddFavorite)
-	ch(http.MethodDelete, "/favorites/:profileId", h.RemoveFavorite)
-	ch(http.MethodGet, "/discover", h.Discover)
-	ch(http.MethodPut, "/dislikes/:profileId", h.Dislike)
-	ch(http.MethodDelete, "/dislikes/:profileId", h.Undislike)
-	ch(http.MethodDelete, "/dislikes", h.ClearDislikes)
-
 	// ---- administration
 	ad := api.Group("/admin", middlewares.AdminIPAllowlist(d.Cfg.AdminAllowedCIDRs), auth.RequireAuth(), middlewares.RequireRole(models.RoleAdmin),
 		middlewares.RequirePasswordChanged(), rl.ByUser("admin", ratelimit.PerMinute(300)))
@@ -286,7 +265,6 @@ func New(d Deps) (*gin.Engine, []RouteSpec) {
 	adh(http.MethodDelete, "/profiles/:id/photos/:photoId", h.AdminRemovePhoto)
 	adh(http.MethodGet, "/users", h.AdminUsers)
 	adh(http.MethodGet, "/users/:id", h.AdminUser)
-	adh(http.MethodGet, "/clients", h.AdminClients)
 	adh(http.MethodPost, "/users/:id/suspend", h.AdminSuspendUser)
 	adh(http.MethodPost, "/users/:id/restore", h.AdminRestoreUser)
 	adh(http.MethodDelete, "/users/:id", h.AdminDeleteUser)

@@ -2,7 +2,7 @@
 import Public from '../../layouts/Public.astro';
 import EstablishmentView from '../../features/catalog/EstablishmentView.tsx';
 
-// Reserved to signed-in users (middleware guard).
+// Public (ADR-023); loaded in the browser so a staff session is still sent.
 const { slug } = Astro.params;
 Astro.response.headers.set('Referrer-Policy', 'no-referrer');
 Astro.response.headers.set('X-Robots-Tag', 'noindex');

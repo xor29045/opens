@@ -1,7 +1,7 @@
 ---
 // Age gate for visitors (F9, T6.2). Rendered only when the consent cookie is
 // absent; the choice is remembered for one year. This is an access barrier,
-// not an identity check (adult profiles are attested by their employer).
+// not an identity check (profiles are created by their house).
 const accepted = Astro.cookies.get('os_age_ok')?.value === '1';
 ---
 {!accepted && (
